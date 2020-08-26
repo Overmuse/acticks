@@ -13,23 +13,18 @@ fn index() -> &'static str {
 }
 
 #[get("/account/new")]
-fn new_account(simulator: State<SafeSimulator>) -> Json<Credentials> {
-    Json(simulator.inner().simulator.lock().unwrap().create_account())
-}
-
-struct SafeSimulator {
-    simulator: Mutex<Simulator>
-}
-
-impl SafeSimulator {
-    fn new() -> Self {
-	Self { simulator: Mutex::new(Simulator::new()) }
-    }
+fn new_account(simulator: State<Mutex<Simulator>>) -> Json<Credentials> {
+    let creds = simulator
+	.inner()
+	.lock()
+	.unwrap()
+	.create_account();
+    Json(creds)
 }
 
 fn main() {
     rocket::ignite()
-	.manage(SafeSimulator::new())
+	.manage(Mutex::new(Simulator::new()))
 	.mount("/", routes![index, new_account])
 	.launch();
 }

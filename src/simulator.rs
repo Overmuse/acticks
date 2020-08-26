@@ -1,7 +1,8 @@
 use crate::api::Credentials;
 use crate::Account;
+
 pub struct Simulator {
-    accounts: Vec<Account>,
+    accounts: Vec<Account>
 }
 
 impl Simulator {
