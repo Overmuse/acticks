@@ -1,6 +1,8 @@
 use rocket::Outcome;
 use rocket::http::Status;
 use rocket::request::{self, Request, FromRequest};
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::Rocket;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -37,4 +39,17 @@ impl<'a, 'r> FromRequest<'a, 'r> for Credentials {
 	    _ => Outcome::Failure((Status::BadRequest, CredentialsError::Invalid)),
 	}
    }
+}
+
+impl Fairing for Credentials {
+    fn info(&self) -> Info {
+	Info {
+	    name: "Credentials",
+	    kind: Kind::Launch
+	}
+    }
+
+    fn on_launch(&self, rocket: &Rocket) {
+	println!("{:?}", self);
+    }
 }

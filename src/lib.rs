@@ -12,12 +12,12 @@ pub mod simulator;
 
 
 #[derive(Debug, Serialize)]
-struct Position {
+pub struct Position {
 
 }
 
 #[derive(Debug, Serialize)]
-struct Order {
+pub struct Order {
 
 }
 
@@ -27,7 +27,7 @@ pub struct Account {
     creds: Credentials,
     cash: f64,
     positions: Vec<Position>,
-    orders: Vec<Order>,
+    pub orders: Vec<Order>,
     config: AccountConfig
 }
 
@@ -43,12 +43,12 @@ impl Account {
 	}
     }	
     
-    fn get_positions(self) -> Vec<Position> {
-        self.positions
+    pub fn get_positions(&self) -> &Vec<Position> {
+        &self.positions
     }
 
-    fn get_orders(self) -> Vec<Order> {
-        self.orders
+    pub fn get_orders(&self) -> &Vec<Order> {
+        &self.orders
     }
 }
 

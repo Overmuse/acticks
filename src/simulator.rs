@@ -7,10 +7,8 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    pub fn new() -> Self {
-        let creds = Credentials::new();
+    pub fn new(creds: &Credentials) -> Self {
 	let account = Account::from_creds(creds.clone());
-	println!("{:?}", creds);
 	Simulator {
 	    account,
 	}
