@@ -2,29 +2,25 @@
 
 #[macro_use] extern crate rocket;
 
-use simulator::{simulator::Simulator, api::Credentials};
+use simulator::{simulator::Simulator, api::Credentials, Account};
 use rocket::State;
 use rocket_contrib::json::Json;
-use std::sync::Mutex;
+use std::sync::RwLock;
+use std::borrow::Borrow;
 
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
 }
 
-#[get("/account/new")]
-fn new_account(simulator: State<Mutex<Simulator>>) -> Json<Credentials> {
-    let creds = simulator
-	.inner()
-	.lock()
-	.unwrap()
-	.create_account();
-    Json(creds)
-}
+#[get("/account")]
+fn get_account<'r>(simulator: State<'r, Simulator>, creds: Credentials) -> Json<&'r Account> {
+    Json(simulator.inner().get_account())
+} 
 
 fn main() {
     rocket::ignite()
-	.manage(Mutex::new(Simulator::new()))
-	.mount("/", routes![index, new_account])
+	.manage(Simulator::new())
+	.mount("/", routes![index, get_account])
 	.launch();
 }

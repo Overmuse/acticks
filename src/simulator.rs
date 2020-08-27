@@ -1,22 +1,22 @@
 use crate::api::Credentials;
 use crate::Account;
+use std::borrow::Borrow;
 
 pub struct Simulator {
-    accounts: Vec<Account>
+    account: Account
 }
 
 impl Simulator {
     pub fn new() -> Self {
+        let creds = Credentials::new();
+	let account = Account::from_creds(creds.clone());
+	println!("{:?}", creds);
 	Simulator {
-	    accounts: vec!(),
+	    account,
 	}
     }
 
-    pub fn create_account(&mut self) -> Credentials {
-        let creds = Credentials::new();
-	let account = Account::from_creds(creds.clone());
-	self.accounts.push(account);
-	println!("{:?}", self.accounts);
-	creds
+    pub fn get_account(&self) -> &Account {
+	&self.account
     }
 }

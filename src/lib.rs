@@ -1,37 +1,28 @@
 use std::default::Default;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::api::Credentials;
+use crate::account_configurations::AccountConfig;
 
+pub mod account_configurations;
 pub mod api;
 pub mod simulator;
 
 
-#[derive(Debug)]
-struct AccountConfig {
-    short_allowed: bool,
-}
 
-impl Default for AccountConfig {
-    fn default() -> AccountConfig {
-	AccountConfig {
-	    short_allowed: true
-	}
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Position {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Order {
 
 }
 
-#[derive(Debug)]
-struct Account {
+#[derive(Debug, Serialize)]
+pub struct Account {
     id: Uuid,
     creds: Credentials,
     cash: f64,
@@ -60,3 +51,4 @@ impl Account {
         self.orders
     }
 }
+

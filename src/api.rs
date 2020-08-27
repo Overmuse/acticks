@@ -1,7 +1,10 @@
-use uuid::Uuid;
+use rocket::Outcome;
+use rocket::http::Status;
+use rocket::request::{self, Request, FromRequest};
 use serde::Serialize;
+use uuid::Uuid;
 
-#[derive(Clone, Serialize, Debug)]
+#[derive(Clone, Serialize, Debug, PartialEq)]
 pub struct Credentials {
     pub key_id: Uuid,
     pub secret_key: Uuid,
@@ -14,4 +17,24 @@ impl Credentials {
             secret_key: Uuid::new_v4(),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum CredentialsError {
+    Missing,
+    Invalid
+}
+
+impl<'a, 'r> FromRequest<'a, 'r> for Credentials {
+    type Error = CredentialsError;
+
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+	let id: Vec<_> = request.headers().get("APCA-API-KEY-ID").collect();
+	let secret_key: Vec<_> = request.headers().get("APCA-API-SECRET-KEY").collect();
+	
+	match (id.len(), secret_key.len()) {
+	    (1, 1) => Outcome::Success(Credentials {key_id: Uuid::parse_str(id[0]).unwrap(), secret_key: Uuid::parse_str(secret_key[0]).unwrap() }),
+	    _ => Outcome::Failure((Status::BadRequest, CredentialsError::Invalid)),
+	}
+   }
 }
