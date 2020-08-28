@@ -49,7 +49,7 @@ impl Fairing for Credentials {
 	}
     }
 
-    fn on_launch(&self, rocket: &Rocket) {
-	println!("{:?}", self);
+    fn on_launch(&self, _rocket: &Rocket) {
+	println!("{:#?}", self);
     }
 }

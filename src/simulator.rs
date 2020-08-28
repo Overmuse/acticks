@@ -1,7 +1,7 @@
 use crate::api::Credentials;
 use crate::Account;
-use std::borrow::Borrow;
 
+#[derive(Clone)]
 pub struct Simulator {
     account: Account
 }
@@ -14,7 +14,7 @@ impl Simulator {
 	}
     }
 
-    pub fn get_account(&self) -> &Account {
-	&self.account
+    pub fn get_account(&self) -> Account {
+	self.account.clone()
     }
 }

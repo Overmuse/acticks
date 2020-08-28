@@ -11,17 +11,17 @@ pub mod simulator;
 
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Position {
 
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Order {
 
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Account {
     id: Uuid,
     creds: Credentials,
@@ -43,12 +43,12 @@ impl Account {
 	}
     }	
     
-    pub fn get_positions(&self) -> &Vec<Position> {
+    pub fn get_positions<'r>(&'r self) -> &'r Vec<Position> {
         &self.positions
     }
 
-    pub fn get_orders(&self) -> &Vec<Order> {
-        &self.orders
+    pub fn get_orders(&self) -> Vec<Order> {
+        self.orders.clone()
     }
 }
 

@@ -1,7 +1,7 @@
 use std::default::Default;
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum DtpbCheck {
     Both,
@@ -9,14 +9,14 @@ pub enum DtpbCheck {
     Exit
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum TradeConfirmEmail {
     All,
     None,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct AccountConfig {
     dtpb_check: DtpbCheck,
     no_shorting: bool,

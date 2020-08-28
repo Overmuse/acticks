@@ -2,24 +2,33 @@
 
 #[macro_use] extern crate rocket;
 
-use simulator::{simulator::Simulator, api::Credentials, Account, Order, Position};
+use simulator::{simulator::Simulator, api::Credentials, Account, Order};
 use rocket::State;
 use rocket_contrib::json::Json;
 use rocket::response::status;
+use std::sync::{Arc, Mutex};
 
 #[get("/account", rank = 1)]
-fn get_account<'r>(simulator: State<'r, Simulator>, _creds: Credentials) -> Json<&'r Account> {
-    Json(simulator.inner().get_account())
+fn get_account(simulator: State<Arc<Mutex<Simulator>>>, _creds: Credentials) -> Json<Account> {
+    let account = Arc::clone(simulator.inner()).lock().unwrap().get_account();
+    //let account = guard.get_account();
+    Json(account)
 } 
 
 #[get("/account", rank = 2)]
-fn get_account_unauthorized(_simulator: State<Simulator>) -> status::Unauthorized<()> {
+fn get_account_unauthorized(_simulator: State<Arc<Mutex<Simulator>>>) -> status::Unauthorized<()> {
     status::Unauthorized::<()>(None)
 }
 
 #[get("/orders")]
-fn get_orders<'r>(simulator: State<'r, Simulator>, _creds: Credentials) -> Json<&'r Vec<Order>> {
-    Json(&simulator.inner().get_account().get_orders())
+fn get_orders(simulator: State<Arc<Mutex<Simulator>>>, _creds: Credentials) -> Json<Vec<Order>> {
+    let orders: Vec<Order> = simulator
+	.inner()
+	.lock()
+	.unwrap()
+	.get_account()
+	.get_orders();
+    Json(orders)
 }
 
 //#[post("/orders")]
@@ -32,7 +41,7 @@ fn get_orders<'r>(simulator: State<'r, Simulator>, _creds: Credentials) -> Json<
 fn main() {
     let creds = Credentials::new();
     rocket::ignite()
-	.manage(Simulator::new(&creds))
+	.manage(Arc::new(Mutex::new(Simulator::new(&creds))))
 	.attach(creds)
 	.mount("/", routes![get_account, get_account_unauthorized, get_orders])
 	.launch();
