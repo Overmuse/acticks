@@ -43,8 +43,8 @@ impl Account {
 	}
     }	
     
-    pub fn get_positions<'r>(&'r self) -> &'r Vec<Position> {
-        &self.positions
+    pub fn get_positions(&self) -> Vec<Position> {
+        self.positions.clone()
     }
 
     pub fn get_orders(&self) -> Vec<Order> {
