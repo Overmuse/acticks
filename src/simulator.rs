@@ -1,4 +1,4 @@
-use crate::api::Credentials;
+use crate::credentials::Credentials;
 use crate::Account;
 
 #[derive(Clone)]

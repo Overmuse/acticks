@@ -2,7 +2,7 @@
 
 #[macro_use] extern crate rocket;
 
-use simulator::{simulator::Simulator, api::Credentials, Account, Order, Position};
+use simulator::{simulator::Simulator, credentials::Credentials, Account, Order, Position};
 use rocket::State;
 use rocket_contrib::json::Json;
 use rocket::response::status;
@@ -23,7 +23,6 @@ fn get_account_unauthorized(_simulator: State<Arc<RwLock<Simulator>>>) -> status
 #[get("/orders")]
 fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Vec<Order>> {
     let orders: Vec<Order> = simulator
-	.inner()
 	.read()
 	.unwrap()
 	.get_account()
@@ -34,7 +33,6 @@ fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> 
 #[get("/positions")]
 fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Vec<Position>> {
     let positions: Vec<Position> = simulator
-	.inner()
 	.read()
 	.unwrap()
 	.get_account()
@@ -43,7 +41,7 @@ fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) 
 }
 #[post("/orders")]
 fn post_order(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Order> {
-    simulator.inner().write().unwrap().account.post_order(Order {});
+    simulator.write().unwrap().account.post_order(Order {});
     Json(Order {})
 }
 

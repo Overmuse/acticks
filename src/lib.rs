@@ -2,11 +2,11 @@ use std::default::Default;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::api::Credentials;
+use crate::credentials::Credentials;
 use crate::account_configurations::AccountConfig;
 
 pub mod account_configurations;
-pub mod api;
+pub mod credentials;
 pub mod simulator;
 
 
