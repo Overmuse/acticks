@@ -70,7 +70,7 @@ fn post_order(
     Json(order)
 }
 
-fn main() {
+fn rocket() -> rocket::Rocket {
     let creds = Credentials::new();
     rocket::ignite()
         .manage(Arc::new(RwLock::new(Simulator::new(&creds))))
@@ -86,5 +86,29 @@ fn main() {
                 post_order
             ],
         )
-        .launch();
+}
+
+fn main() {
+    rocket().launch();
+}
+
+#[cfg(test)]
+mod test {
+    use super::rocket;
+    use crate::Credentials;
+    use rocket::local::Client;
+    use rocket::http::{Header, Status};
+    use uuid::Uuid;
+
+    #[test]
+    fn get_account() {
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut req = client
+            .get("/account");
+        req.add_header(Header::new("APCA-API-KEY-ID", Uuid::new_v4().to_hyphenated().to_string()));
+        req.add_header(Header::new("APCA-API-SECRET-KEY", Uuid::new_v4().to_hyphenated().to_string()));
+
+        let response = req.dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    }
 }
