@@ -1,3 +1,4 @@
+mod utils;
 pub mod account_configurations;
 pub mod credentials;
 pub mod account;

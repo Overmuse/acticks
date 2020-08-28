@@ -2,18 +2,24 @@ use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
+use crate::utils::*;
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OrderType {
     Market,
     Limit {
+        #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
         limit_price: f64,
     },
     Stop {
+        #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
         stop_price: f64,
     },
     StopLimit {
+        #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
         limit_price: f64,
+        #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
         stop_price: f64,
     },
 }
@@ -120,9 +126,10 @@ impl Default for OrderClass {
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq, Clone)]
 pub struct OrderIntent {
     pub symbol: String,
+    #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub qty: u32,
     pub side: Side,
-    #[serde(flatten, rename(serialize = "type"))]
+    #[serde(flatten, rename(serialize = "type", deserialize = "type"))]
     pub order_type: OrderType,
     pub time_in_force: TimeInForce,
     pub extended_hours: bool,
@@ -177,7 +184,7 @@ impl OrderIntent {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Order {
     pub id: Uuid,
-    pub client_order_id: Option<String>,
+    pub client_order_id: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: Option<DateTime<Utc>>,
     pub submitted_at: Option<DateTime<Utc>>,
@@ -191,12 +198,15 @@ pub struct Order {
     pub asset_id: Uuid,
     pub symbol: String,
     pub asset_class: String,
+    #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub qty: u32,
+    #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub filled_qty: u32,
     #[serde(flatten, rename(serialize = "type"))]
     pub order_type: OrderType,
     pub side: Side,
     pub time_in_force: TimeInForce,
+    #[serde(deserialize_with = "from_str_optional", serialize_with = "to_string_optional")]
     pub filled_avg_price: Option<f64>,
     pub status: OrderStatus,
     pub extended_hours: bool,
@@ -205,9 +215,13 @@ pub struct Order {
 
 impl Order {
     pub fn from_intent(oi: OrderIntent) -> Order {
+        let client_order_id = match oi.client_order_id {
+            None => Uuid::new_v4().to_hyphenated().to_string(),
+            Some(s) => s
+        };
         Order {
    	        id: Uuid::new_v4(),
-	        client_order_id: oi.client_order_id,
+	        client_order_id: client_order_id,
 	        created_at: Utc::now(),
 	        updated_at: None,
 	        submitted_at: None,

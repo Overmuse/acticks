@@ -37,6 +37,7 @@ impl Account {
 
     pub fn post_order(&mut self, o: OrderIntent) -> Order {
         let order: Order = Order::from_intent(o);
+        println!("{:#?}", &order);
         self.orders.push(order.clone());
         order
     }
