@@ -11,3 +11,4 @@ rocket = "0.4.5"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 rocket_contrib = "0.4.5"
 serde = { version = "1.0.115", features = ["derive"] }
+chrono = { version = "0.4.15", features = ["serde"] }

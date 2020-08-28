@@ -2,7 +2,7 @@
 
 #[macro_use] extern crate rocket;
 
-use simulator::{simulator::Simulator, credentials::Credentials, Account, Order, Position};
+use simulator::{simulator::Simulator, credentials::Credentials, account::Account, order::{Order, OrderIntent}, position::Position};
 use rocket::State;
 use rocket_contrib::json::Json;
 use rocket::response::status;
@@ -39,10 +39,11 @@ fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) 
 	.get_positions();
     Json(positions)
 }
-#[post("/orders")]
-fn post_order(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Order> {
-    simulator.write().unwrap().account.post_order(Order {});
-    Json(Order {})
+#[post("/orders", format = "json", data = "<oi>")]
+fn post_order(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials, oi: Json<OrderIntent>) -> Json<Order> {
+    let oi = oi.0;
+    let order = simulator.write().unwrap().account.post_order(oi);
+    Json(order)
 }
 
 fn main() {

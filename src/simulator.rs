@@ -1,5 +1,5 @@
 use crate::credentials::Credentials;
-use crate::Account;
+use crate::account::Account;
 
 #[derive(Clone)]
 pub struct Simulator {
