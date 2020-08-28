@@ -1,20 +1,18 @@
-use crate::credentials::Credentials;
 use crate::account::Account;
+use crate::credentials::Credentials;
 
 #[derive(Clone)]
 pub struct Simulator {
-    pub account: Account
+    pub account: Account,
 }
 
 impl Simulator {
     pub fn new(creds: &Credentials) -> Self {
-	let account = Account::from_creds(creds.clone());
-	Simulator {
-	    account,
-	}
+        let account = Account::from_creds(creds.clone());
+        Simulator { account }
     }
 
     pub fn get_account(&self) -> Account {
-	self.account.clone()
+        self.account.clone()
     }
 }

@@ -1,9 +1,9 @@
-use uuid::Uuid;
-use serde::Serialize;
-use crate::position::Position;
-use crate::order::{Order, OrderIntent};
-use crate::credentials::Credentials;
 use crate::account_configurations::AccountConfig;
+use crate::credentials::Credentials;
+use crate::order::{Order, OrderIntent};
+use crate::position::Position;
+use serde::Serialize;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Account {
@@ -12,21 +12,21 @@ pub struct Account {
     cash: f64,
     positions: Vec<Position>,
     pub orders: Vec<Order>,
-    config: AccountConfig
+    config: AccountConfig,
 }
 
 impl Account {
     pub fn from_creds(creds: Credentials) -> Self {
-	Account {
-	    id: Uuid::new_v4(),
-	    creds: creds,
-	    cash: 0.0,
-	    positions: vec!(),
-	    orders: vec!(),
+        Account {
+            id: Uuid::new_v4(),
+            creds: creds,
+            cash: 0.0,
+            positions: vec![],
+            orders: vec![],
             config: AccountConfig::default(),
-	}
-    }	
-    
+        }
+    }
+
     pub fn get_positions(&self) -> Vec<Position> {
         self.positions.clone()
     }
@@ -37,7 +37,6 @@ impl Account {
 
     pub fn post_order(&mut self, o: OrderIntent) -> Order {
         let order: Order = Order::from_intent(o);
-        println!("{:#?}", &order);
         self.orders.push(order.clone());
         order
     }

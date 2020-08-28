@@ -1,12 +1,12 @@
-use std::default::Default;
 use serde::Serialize;
+use std::default::Default;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum DtpbCheck {
     Both,
     Entry,
-    Exit
+    Exit,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -26,11 +26,11 @@ pub struct AccountConfig {
 
 impl Default for AccountConfig {
     fn default() -> AccountConfig {
-	AccountConfig {
-	    dtpb_check: DtpbCheck::Both,
-	    no_shorting: false,
+        AccountConfig {
+            dtpb_check: DtpbCheck::Both,
+            no_shorting: false,
             suspend_trade: false,
             trade_confirm_email: TradeConfirmEmail::None,
-	}
+        }
     }
 }

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::utils::*;
@@ -29,8 +29,6 @@ impl Default for OrderType {
         OrderType::Market
     }
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -80,7 +78,7 @@ impl Default for OrderStatus {
 #[serde(rename_all = "snake_case")]
 pub enum Side {
     Buy,
-    Sell
+    Sell,
 }
 
 impl Default for Side {
@@ -206,7 +204,10 @@ pub struct Order {
     pub order_type: OrderType,
     pub side: Side,
     pub time_in_force: TimeInForce,
-    #[serde(deserialize_with = "from_str_optional", serialize_with = "to_string_optional")]
+    #[serde(
+        deserialize_with = "from_str_optional",
+        serialize_with = "to_string_optional"
+    )]
     pub filled_avg_price: Option<f64>,
     pub status: OrderStatus,
     pub extended_hours: bool,
@@ -217,15 +218,15 @@ impl Order {
     pub fn from_intent(oi: OrderIntent) -> Order {
         let client_order_id = match oi.client_order_id {
             None => Uuid::new_v4().to_hyphenated().to_string(),
-            Some(s) => s
+            Some(s) => s,
         };
         Order {
-   	        id: Uuid::new_v4(),
-	        client_order_id: client_order_id,
-	        created_at: Utc::now(),
-	        updated_at: None,
-	        submitted_at: None,
-	        filled_at: None,
+            id: Uuid::new_v4(),
+            client_order_id: client_order_id,
+            created_at: Utc::now(),
+            updated_at: None,
+            submitted_at: None,
+            filled_at: None,
             expired_at: None,
             canceled_at: None,
             failed_at: None,
