@@ -41,18 +41,17 @@ fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) 
 	.get_positions();
     Json(positions)
 }
-//#[post("/orders")]
-//fn post_order(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Order> {
-//    let mut account: Account = simulator.inner().read().unwrap().get_account();
-//    account.orders.push(Order {});
-//    Json(Order{})
-//}
+#[post("/orders")]
+fn post_order(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Order> {
+    simulator.inner().write().unwrap().account.post_order(Order {});
+    Json(Order {})
+}
 
 fn main() {
     let creds = Credentials::new();
     rocket::ignite()
 	.manage(Arc::new(RwLock::new(Simulator::new(&creds))))
 	.attach(creds)
-	.mount("/", routes![get_account, get_account_unauthorized, get_orders, get_positions])
+	.mount("/", routes![get_account, get_account_unauthorized, get_orders, get_positions, post_order])
 	.launch();
 }

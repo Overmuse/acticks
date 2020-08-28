@@ -3,7 +3,7 @@ use crate::Account;
 
 #[derive(Clone)]
 pub struct Simulator {
-    account: Account
+    pub account: Account
 }
 
 impl Simulator {

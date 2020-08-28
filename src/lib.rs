@@ -50,5 +50,9 @@ impl Account {
     pub fn get_orders(&self) -> Vec<Order> {
         self.orders.clone()
     }
+
+    pub fn post_order(&mut self, o: Order) {
+        self.orders.push(o)
+    }
 }
 
