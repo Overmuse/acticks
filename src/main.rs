@@ -23,7 +23,7 @@ fn get_account(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Jso
 
 #[get("/orders")]
 fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = simulator.read().unwrap().get_account().get_orders();
+    let orders: Vec<Order> = simulator.read().unwrap().get_orders();
     Json(orders)
 }
 
@@ -36,7 +36,6 @@ fn get_order_by_id(
     let order: Order = simulator
         .read()
         .unwrap()
-        .get_account()
         .get_orders()
         .into_iter()
         .find(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string())
@@ -46,7 +45,7 @@ fn get_order_by_id(
 
 #[delete("/orders")]
 fn delete_orders(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) {
-    simulator.write().unwrap().account.orders.clear();
+    simulator.write().unwrap().orders.clear();
 }
 
 #[delete("/orders/<id>")]
@@ -58,7 +57,6 @@ fn delete_order_by_id(
     let orders = &mut simulator
         .write()
         .unwrap()
-        .account
         .orders;
     let pos = &orders
         .iter()
@@ -80,7 +78,7 @@ fn post_order(
     _c: Credentials,
     oi: Json<OrderIntent>,
 ) -> Json<Order> {
-    let order = simulator.write().unwrap().account.post_order(oi.0);
+    let order = simulator.write().unwrap().post_order(oi.0);
     Json(order)
 }
 
