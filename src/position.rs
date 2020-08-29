@@ -7,7 +7,7 @@ use crate::utils::{from_str, to_string};
 #[serde(rename_all(serialize = "lowercase"))]
 pub enum Side {
     Long,
-    Short
+    Short,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

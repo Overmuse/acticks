@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate rocket;
 
-use rocket::{State, response::status::NotFound};
+use rocket::{response::status::NotFound, State};
 use rocket_contrib::{json::Json, uuid::Uuid};
 use simulator::{
     account::Account,
@@ -12,30 +12,22 @@ use simulator::{
     position::Position,
     simulator::Simulator,
 };
-use std::sync::{Arc, RwLock};
 
 #[get("/account", rank = 1)]
-fn get_account(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Account> {
-    let account = Arc::clone(simulator.inner()).read().unwrap().get_account();
-    //let account = guard.get_account();
+fn get_account(simulator: State<Simulator>, _c: Credentials) -> Json<Account> {
+    let account = simulator.get_account();
     Json(account)
 }
 
 #[get("/orders")]
-fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = simulator.read().unwrap().get_orders();
+fn get_orders(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Order>> {
+    let orders: Vec<Order> = simulator.get_orders();
     Json(orders)
 }
 
 #[get("/orders/<id>")]
-fn get_order_by_id(
-    simulator: State<Arc<RwLock<Simulator>>>,
-    _c: Credentials,
-    id: Uuid,
-) -> Json<Order> {
+fn get_order_by_id(simulator: State<Simulator>, _c: Credentials, id: Uuid) -> Json<Order> {
     let order: Order = simulator
-        .read()
-        .unwrap()
         .get_orders()
         .into_iter()
         .find(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string())
@@ -44,61 +36,59 @@ fn get_order_by_id(
 }
 
 #[delete("/orders")]
-fn delete_orders(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) {
-    simulator.write().unwrap().orders.clear();
+fn delete_orders(simulator: State<Simulator>, _c: Credentials) {
+    simulator.modify_orders(|o| o.clear());
 }
 
 #[delete("/orders/<id>")]
 fn delete_order_by_id(
-    simulator: State<Arc<RwLock<Simulator>>>,
+    simulator: State<Simulator>,
     _c: Credentials,
     id: Uuid,
-) -> Result<(), NotFound<String>>{
-    let orders = &mut simulator
-        .write()
-        .unwrap()
-        .orders;
+) -> Result<(), NotFound<String>> {
+    let orders = simulator.get_orders();
     let idx = &orders
         .iter()
         .position(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string());
     match idx {
-        Some(x) => {orders.remove(*x); Ok(())},
-        None => Err(NotFound(format!("{{\"code\":40410000,\"message\":order not found for {}}}", id)))
+        Some(x) => {
+            simulator.modify_orders(|o| {
+                o.remove(*x);
+            });
+            Ok(())
+        }
+        None => Err(NotFound(format!(
+            "{{\"code\":40410000,\"message\":order not found for {}}}",
+            id
+        ))),
     }
 }
 
 #[get("/positions")]
-fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = simulator.read().unwrap().get_positions();
+fn get_positions(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Position>> {
+    let positions: Vec<Position> = simulator.get_positions();
     Json(positions)
 }
 
 #[get("/positions/<symbol>")]
 fn get_position_by_symbol(
-    simulator: State<Arc<RwLock<Simulator>>>,
+    simulator: State<Simulator>,
     _c: Credentials,
     symbol: String,
 ) -> Result<Json<Position>, NotFound<String>> {
-    let positions: Vec<Position> = simulator
-        .read()
-        .unwrap()
-        .get_positions();
-    let idx = &positions
-        .iter()
-        .position(|p| p.symbol == symbol);
+    let positions: Vec<Position> = simulator.get_positions();
+    let idx = &positions.iter().position(|p| p.symbol == symbol);
     match idx {
         Some(x) => Ok(Json(positions[*x].clone())),
-        None => Err(NotFound("{\"code\":40410000,\"message\":position does not exist}".to_string()))
+        None => Err(NotFound(
+            "{\"code\":40410000,\"message\":position does not exist}".to_string(),
+        )),
     }
 }
 
 #[post("/orders", format = "json", data = "<oi>")]
-fn post_order(
-    simulator: State<Arc<RwLock<Simulator>>>,
-    _c: Credentials,
-    oi: Json<OrderIntent>,
-) -> Json<Order> {
-    let order = simulator.write().unwrap().post_order(oi.0);
+fn post_order(simulator: State<Simulator>, _c: Credentials, oi: Json<OrderIntent>) -> Json<Order> {
+    let order = simulator.post_order(oi.0);
     Json(order)
 }
 
@@ -106,7 +96,7 @@ fn rocket() -> rocket::Rocket {
     let creds = Credentials::new();
     let cash = 10000000.0;
     rocket::ignite()
-        .manage(Arc::new(RwLock::new(Simulator::new(cash))))
+        .manage(Simulator::new(cash))
         .attach(creds)
         .mount(
             "/",

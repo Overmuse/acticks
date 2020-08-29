@@ -61,36 +61,36 @@ pub struct Account {
 }
 
 impl Account {
-	pub fn new(cash: f64) -> Self {
-		Account {
-			id: Uuid::new_v4(),
-			account_number: "".to_string(),
-			status: AccountStatus::Active,
-			currency: "USD".to_string(),
+    pub fn new(cash: f64) -> Self {
+        Account {
+            id: Uuid::new_v4(),
+            account_number: "".to_string(),
+            status: AccountStatus::Active,
+            currency: "USD".to_string(),
             cash,
             portfolio_value: cash,
-			pattern_day_trader: false,
-			trade_suspended_by_user: false,
-			trading_blocked: false,
-			transfers_blocked: false,
-			account_blocked: false,
-			created_at: Utc::now(),
-			shorting_enabled: true,
-			long_market_value: 0.0,
-			short_market_value: 0.0,
-			equity: cash,
-			last_equity: cash,
-			multiplier: 4.0,
-			buying_power: 4.0 * cash,
-			initial_margin: 0.0,
-			maintenance_margin: 0.0,
-			sma: 0.0,
-			daytrade_count: 0,
-			last_maintenance_margin: 0.0,
-			daytrading_buying_power: 4.0 * cash,
-			regt_buying_power: 2.0 * cash,
-		}
-	}
+            pattern_day_trader: false,
+            trade_suspended_by_user: false,
+            trading_blocked: false,
+            transfers_blocked: false,
+            account_blocked: false,
+            created_at: Utc::now(),
+            shorting_enabled: true,
+            long_market_value: 0.0,
+            short_market_value: 0.0,
+            equity: cash,
+            last_equity: cash,
+            multiplier: 4.0,
+            buying_power: 4.0 * cash,
+            initial_margin: 0.0,
+            maintenance_margin: 0.0,
+            sma: 0.0,
+            daytrade_count: 0,
+            last_maintenance_margin: 0.0,
+            daytrading_buying_power: 4.0 * cash,
+            regt_buying_power: 2.0 * cash,
+        }
+    }
 }
 
 //---
