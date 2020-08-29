@@ -9,7 +9,7 @@ use simulator::{
     account::Account,
     credentials::Credentials,
     order::{Order, OrderIntent},
-    //position::Position,
+    position::Position,
     simulator::Simulator,
 };
 use std::sync::{Arc, RwLock};
@@ -58,20 +58,39 @@ fn delete_order_by_id(
         .write()
         .unwrap()
         .orders;
-    let pos = &orders
+    let idx = &orders
         .iter()
         .position(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string());
-    match pos {
+    match idx {
         Some(x) => {orders.remove(*x); Ok(())},
         None => Err(NotFound(format!("{{\"code\":40410000,\"message\":order not found for {}}}", id)))
     }
 }
 
-//#[get("/positions")]
-//fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Position>> {
-//    let positions: Vec<Position> = simulator.read().unwrap().get_account().get_positions();
-//    Json(positions)
-//}
+#[get("/positions")]
+fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Position>> {
+    let positions: Vec<Position> = simulator.read().unwrap().get_positions();
+    Json(positions)
+}
+
+#[get("/positions/<symbol>")]
+fn get_position_by_symbol(
+    simulator: State<Arc<RwLock<Simulator>>>,
+    _c: Credentials,
+    symbol: String,
+) -> Result<Json<Position>, NotFound<String>> {
+    let positions: Vec<Position> = simulator
+        .read()
+        .unwrap()
+        .get_positions();
+    let idx = &positions
+        .iter()
+        .position(|p| p.symbol == symbol);
+    match idx {
+        Some(x) => Ok(Json(positions[*x].clone())),
+        None => Err(NotFound("{\"code\":40410000,\"message\":position does not exist}".to_string()))
+    }
+}
 
 #[post("/orders", format = "json", data = "<oi>")]
 fn post_order(
@@ -97,7 +116,8 @@ fn rocket() -> rocket::Rocket {
                 get_order_by_id,
                 delete_orders,
                 delete_order_by_id,
-                //get_positions,
+                get_positions,
+                get_position_by_symbol,
                 post_order
             ],
         )
