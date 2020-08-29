@@ -2,6 +2,9 @@ use crate::account::Account;
 use crate::order::{Order, OrderIntent, OrderStatus};
 use crate::position::{Position, Side};
 use chrono::Utc;
+use rdkafka::config::ClientConfig;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use serde_json;
 use std::sync::{Arc, RwLock};
 use std::thread;
 
@@ -10,6 +13,7 @@ pub struct Simulator {
     account: Arc<RwLock<Account>>,
     orders: Arc<RwLock<Vec<Order>>>,
     positions: Arc<RwLock<Vec<Position>>>,
+    producer: FutureProducer,
 }
 
 impl Simulator {
@@ -17,10 +21,15 @@ impl Simulator {
         let account = Arc::new(RwLock::new(Account::new(cash)));
         let orders = Arc::new(RwLock::new(vec![]));
         let positions = Arc::new(RwLock::new(vec![]));
+        let producer = ClientConfig::new()
+            .set("bootstrap.servers", "localhost:9092")
+            .create()
+            .unwrap();
         Simulator {
             account,
             orders,
             positions,
+            producer,
         }
     }
 
@@ -61,8 +70,8 @@ impl Simulator {
         let orders = self.get_orders();
         let idx = &orders.iter().position(|o2| o2.id.to_hyphenated().to_string() == o.id.to_hyphenated().to_string()).unwrap();
         self.modify_orders(|os| {
-            let time = Some(Utc::now());
             let mut order = &mut os[*idx];
+            let time = Some(Utc::now());
             order.filled_qty = order.qty;
             order.updated_at = time;
             order.submitted_at = time;
@@ -97,6 +106,11 @@ impl Simulator {
         let order: Order = Order::from_intent(o);
         self.modify_orders(|o| o.push(order.clone()));
         let o2 = order.clone();
+        let payload = &serde_json::to_string(&order).unwrap();
+        self.producer.send(
+            FutureRecord::to("new_orders").key(&order.symbol).payload(payload),
+            0,
+        );
         let s = self.clone();
         thread::spawn(move || {
             s.schedule_order(o2);
