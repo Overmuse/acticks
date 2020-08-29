@@ -1,6 +1,5 @@
 use crate::account::Account;
 use crate::order::{OrderIntent, Order};
-use crate::credentials::Credentials;
 
 #[derive(Clone)]
 pub struct Simulator {
@@ -9,8 +8,8 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    pub fn new(creds: &Credentials) -> Self {
-        let account = Account::from_creds(creds.clone());
+    pub fn new(cash: f64) -> Self {
+        let account = Account::new(cash);
         let orders = vec!();
         Simulator { account, orders }
     }

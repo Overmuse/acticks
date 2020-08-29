@@ -9,7 +9,7 @@ use simulator::{
     account::Account,
     credentials::Credentials,
     order::{Order, OrderIntent},
-    position::Position,
+    //position::Position,
     simulator::Simulator,
 };
 use std::sync::{Arc, RwLock};
@@ -67,11 +67,12 @@ fn delete_order_by_id(
     }
 }
 
-#[get("/positions")]
-fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = simulator.read().unwrap().get_account().get_positions();
-    Json(positions)
-}
+//#[get("/positions")]
+//fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Position>> {
+//    let positions: Vec<Position> = simulator.read().unwrap().get_account().get_positions();
+//    Json(positions)
+//}
+
 #[post("/orders", format = "json", data = "<oi>")]
 fn post_order(
     simulator: State<Arc<RwLock<Simulator>>>,
@@ -84,8 +85,9 @@ fn post_order(
 
 fn rocket() -> rocket::Rocket {
     let creds = Credentials::new();
+    let cash = 10000000.0;
     rocket::ignite()
-        .manage(Arc::new(RwLock::new(Simulator::new(&creds))))
+        .manage(Arc::new(RwLock::new(Simulator::new(cash))))
         .attach(creds)
         .mount(
             "/",
@@ -95,7 +97,7 @@ fn rocket() -> rocket::Rocket {
                 get_order_by_id,
                 delete_orders,
                 delete_order_by_id,
-                get_positions,
+                //get_positions,
                 post_order
             ],
         )
