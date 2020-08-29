@@ -15,19 +15,20 @@ use simulator::{
 
 #[get("/account", rank = 1)]
 fn get_account(simulator: State<Simulator>, _c: Credentials) -> Json<Account> {
-    let account = simulator.get_account();
+    let account = simulator.inner().get_account();
     Json(account)
 }
 
 #[get("/orders")]
 fn get_orders(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = simulator.get_orders();
+    let orders: Vec<Order> = simulator.inner().get_orders();
     Json(orders)
 }
 
 #[get("/orders/<id>")]
 fn get_order_by_id(simulator: State<Simulator>, _c: Credentials, id: Uuid) -> Json<Order> {
     let order: Order = simulator
+        .inner()
         .get_orders()
         .into_iter()
         .find(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string())
@@ -37,7 +38,7 @@ fn get_order_by_id(simulator: State<Simulator>, _c: Credentials, id: Uuid) -> Js
 
 #[delete("/orders")]
 fn delete_orders(simulator: State<Simulator>, _c: Credentials) {
-    simulator.modify_orders(|o| o.clear());
+    simulator.inner().modify_orders(|o| o.clear());
 }
 
 #[delete("/orders/<id>")]
@@ -46,13 +47,13 @@ fn delete_order_by_id(
     _c: Credentials,
     id: Uuid,
 ) -> Result<(), NotFound<String>> {
-    let orders = simulator.get_orders();
+    let orders = simulator.inner().get_orders();
     let idx = &orders
         .iter()
         .position(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string());
     match idx {
         Some(x) => {
-            simulator.modify_orders(|o| {
+            simulator.inner().modify_orders(|o| {
                 o.remove(*x);
             });
             Ok(())
@@ -66,7 +67,7 @@ fn delete_order_by_id(
 
 #[get("/positions")]
 fn get_positions(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = simulator.get_positions();
+    let positions: Vec<Position> = simulator.inner().get_positions();
     Json(positions)
 }
 
@@ -76,7 +77,7 @@ fn get_position_by_symbol(
     _c: Credentials,
     symbol: String,
 ) -> Result<Json<Position>, NotFound<String>> {
-    let positions: Vec<Position> = simulator.get_positions();
+    let positions: Vec<Position> = simulator.inner().get_positions();
     let idx = &positions.iter().position(|p| p.symbol == symbol);
     match idx {
         Some(x) => Ok(Json(positions[*x].clone())),
@@ -88,7 +89,7 @@ fn get_position_by_symbol(
 
 #[post("/orders", format = "json", data = "<oi>")]
 fn post_order(simulator: State<Simulator>, _c: Credentials, oi: Json<OrderIntent>) -> Json<Order> {
-    let order = simulator.post_order(oi.0);
+    let order = simulator.inner().post_order(oi.0);
     Json(order)
 }
 
