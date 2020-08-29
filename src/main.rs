@@ -3,9 +3,8 @@
 #[macro_use]
 extern crate rocket;
 
-use rocket::response::status;
-use rocket::State;
-use rocket_contrib::json::Json;
+use rocket::{State, response::status::NotFound};
+use rocket_contrib::{json::Json, uuid::Uuid};
 use simulator::{
     account::Account,
     credentials::Credentials,
@@ -16,19 +15,14 @@ use simulator::{
 use std::sync::{Arc, RwLock};
 
 #[get("/account", rank = 1)]
-fn get_account(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Account> {
+fn get_account(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Account> {
     let account = Arc::clone(simulator.inner()).read().unwrap().get_account();
     //let account = guard.get_account();
     Json(account)
 }
 
-#[get("/account", rank = 2)]
-fn get_account_unauthorized(_simulator: State<Arc<RwLock<Simulator>>>) -> status::Unauthorized<()> {
-    status::Unauthorized::<()>(None)
-}
-
 #[get("/orders")]
-fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> Json<Vec<Order>> {
+fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Order>> {
     let orders: Vec<Order> = simulator.read().unwrap().get_account().get_orders();
     Json(orders)
 }
@@ -36,10 +30,9 @@ fn get_orders(simulator: State<Arc<RwLock<Simulator>>>, _creds: Credentials) -> 
 #[get("/orders/<id>")]
 fn get_order_by_id(
     simulator: State<Arc<RwLock<Simulator>>>,
-    _creds: Credentials,
-    id: rocket_contrib::uuid::Uuid,
+    _c: Credentials,
+    id: Uuid,
 ) -> Json<Order> {
-    //let id: uuid::Uuid = id.into_inner();
     let order: Order = simulator
         .read()
         .unwrap()
@@ -51,22 +44,43 @@ fn get_order_by_id(
     Json(order)
 }
 
-#[get("/positions")]
-fn get_positions(
+#[delete("/orders")]
+fn delete_orders(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) {
+    simulator.write().unwrap().account.orders.clear();
+}
+
+#[delete("/orders/<id>")]
+fn delete_order_by_id(
     simulator: State<Arc<RwLock<Simulator>>>,
-    _creds: Credentials,
-) -> Json<Vec<Position>> {
+    _c: Credentials,
+    id: Uuid,
+) -> Result<(), NotFound<String>>{
+    let orders = &mut simulator
+        .write()
+        .unwrap()
+        .account
+        .orders;
+    let pos = &orders
+        .iter()
+        .position(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string());
+    match pos {
+        Some(x) => {orders.remove(*x); Ok(())},
+        None => Err(NotFound(format!("{{\"code\":40410000,\"message\":order not found for {}}}", id)))
+    }
+}
+
+#[get("/positions")]
+fn get_positions(simulator: State<Arc<RwLock<Simulator>>>, _c: Credentials) -> Json<Vec<Position>> {
     let positions: Vec<Position> = simulator.read().unwrap().get_account().get_positions();
     Json(positions)
 }
 #[post("/orders", format = "json", data = "<oi>")]
 fn post_order(
     simulator: State<Arc<RwLock<Simulator>>>,
-    _creds: Credentials,
+    _c: Credentials,
     oi: Json<OrderIntent>,
 ) -> Json<Order> {
-    let oi = oi.0;
-    let order = simulator.write().unwrap().account.post_order(oi);
+    let order = simulator.write().unwrap().account.post_order(oi.0);
     Json(order)
 }
 
@@ -79,9 +93,10 @@ fn rocket() -> rocket::Rocket {
             "/",
             routes![
                 get_account,
-                get_account_unauthorized,
                 get_orders,
                 get_order_by_id,
+                delete_orders,
+                delete_order_by_id,
                 get_positions,
                 post_order
             ],
@@ -95,18 +110,39 @@ fn main() {
 #[cfg(test)]
 mod test {
     use super::rocket;
-    use crate::Credentials;
-    use rocket::local::Client;
     use rocket::http::{Header, Status};
+    use rocket::local::Client;
     use uuid::Uuid;
 
     #[test]
     fn get_account() {
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut req = client
-            .get("/account");
-        req.add_header(Header::new("APCA-API-KEY-ID", Uuid::new_v4().to_hyphenated().to_string()));
-        req.add_header(Header::new("APCA-API-SECRET-KEY", Uuid::new_v4().to_hyphenated().to_string()));
+        let client = Client::new(rocket()).unwrap();
+        let mut req = client.get("/account");
+        req.add_header(Header::new(
+            "APCA-API-KEY-ID",
+            Uuid::new_v4().to_hyphenated().to_string(),
+        ));
+        req.add_header(Header::new(
+            "APCA-API-SECRET-KEY",
+            Uuid::new_v4().to_hyphenated().to_string(),
+        ));
+
+        let response = req.dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    }
+
+    #[test]
+    fn get_orders() {
+        let client = Client::new(rocket()).unwrap();
+        let mut req = client.get("/orders");
+        req.add_header(Header::new(
+            "APCA-API-KEY-ID",
+            Uuid::new_v4().to_hyphenated().to_string(),
+        ));
+        req.add_header(Header::new(
+            "APCA-API-SECRET-KEY",
+            Uuid::new_v4().to_hyphenated().to_string(),
+        ));
 
         let response = req.dispatch();
         assert_eq!(response.status(), Status::Ok);
