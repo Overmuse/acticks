@@ -10,9 +10,18 @@ pub struct TradeFill {
     pub order: Order,
 }
 
+pub enum MarketStatus {
+    PreOpen,
+    Open,
+    PostClose,
+    Maintenance,
+    Closed,
+}
+
 pub struct Exchange {
     pub assets: HashSet<String, RandomState>,
     pub stored_orders: Vec<Order>,
+    pub market_status: MarketStatus,
 }
 
 impl Exchange {
@@ -20,26 +29,35 @@ impl Exchange {
         Self {
             assets: HashSet::new(),
             stored_orders: vec![],
+            market_status: MarketStatus::PreOpen,
         }
     }
 
     pub fn transmit_order(&mut self, o: Order) -> Option<TradeFill> {
-        if self.is_open() {
-            match o.order_type {
+        match (&self.market_status, o.extended_hours) {
+            (MarketStatus::Open, _)
+            | (MarketStatus::PreOpen, true)
+            | (MarketStatus::PostClose, true) => match o.order_type {
                 OrderType::Market => {
                     let price = self.get_price(&o.symbol);
                     Some(self.execute(o, price))
                 }
                 _ => self.execute_or_store(o),
+            },
+            (MarketStatus::Maintenance, _) => todo!(),
+            _ => {
+                self.store(o);
+                None
             }
-        } else {
-            self.store(o);
-            None
         }
     }
 
     pub fn is_open(&self) -> bool {
         true
+    }
+
+    pub fn market_status(&self) -> MarketStatus {
+        todo!()
     }
 
     pub fn execute(&mut self, order: Order, price: f64) -> TradeFill {
@@ -77,11 +95,19 @@ fn is_marketable(o: &Order, price: f64) -> bool {
         (OrderType::Limit { limit_price }, Side::Sell) => *limit_price <= price,
         (OrderType::Stop { stop_price }, Side::Buy) => *stop_price <= price,
         (OrderType::Stop { stop_price }, Side::Sell) => *stop_price >= price,
-        (OrderType::StopLimit {limit_price, stop_price,}, Side::Buy) => {
-            *limit_price >= price && price >= *stop_price
-        },
-        (OrderType::StopLimit {limit_price, stop_price,}, Side::Sell) => {
-            *limit_price <= price && price <= *stop_price}
-        ,
+        (
+            OrderType::StopLimit {
+                limit_price,
+                stop_price,
+            },
+            Side::Buy,
+        ) => *limit_price >= price && price >= *stop_price,
+        (
+            OrderType::StopLimit {
+                limit_price,
+                stop_price,
+            },
+            Side::Sell,
+        ) => *limit_price <= price && price <= *stop_price,
     }
 }
