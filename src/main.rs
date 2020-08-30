@@ -3,14 +3,15 @@
 #[macro_use]
 extern crate rocket;
 
-use rocket::{response::status::NotFound, State};
+use rocket::State;
 use rocket_contrib::{json::Json, uuid::Uuid};
 use simulator::{
     account::Account,
+    brokerage::Brokerage,
     credentials::Credentials,
-    order::{Order, OrderIntent},
+    errors::{Error, Result},
+    order::{Order, OrderIntent, OrderStatus},
     position::Position,
-    simulator::Simulator,
 };
 
 fn convert_uuid(id: Uuid) -> uuid::Uuid {
@@ -18,14 +19,14 @@ fn convert_uuid(id: Uuid) -> uuid::Uuid {
 }
 
 #[get("/account", rank = 1)]
-fn get_account(simulator: State<Simulator>, _c: Credentials) -> Json<Account> {
-    let account = simulator.inner().get_account();
+fn get_account(brokerage: State<Brokerage>, _c: Credentials) -> Json<Account> {
+    let account = brokerage.inner().get_account();
     Json(account)
 }
 
 #[get("/orders")]
-fn get_orders(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = simulator
+fn get_orders(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Order>> {
+    let orders: Vec<Order> = brokerage
         .inner()
         .get_orders()
         .values_mut()
@@ -35,42 +36,37 @@ fn get_orders(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Order>> 
 }
 
 #[get("/orders/<id>")]
-fn get_order_by_id(simulator: State<Simulator>, _c: Credentials, id: Uuid) -> Json<Order> {
+fn get_order_by_id(brokerage: State<Brokerage>, _c: Credentials, id: Uuid) -> Json<Order> {
     let id: uuid::Uuid = convert_uuid(id);
-    let order: Order = simulator.inner().get_order(id).unwrap();
+    let order: Order = brokerage.inner().get_order(id).unwrap();
     Json(order)
 }
 
 #[delete("/orders")]
-fn delete_orders(simulator: State<Simulator>, _c: Credentials) {
-    simulator.inner().modify_orders(|o| o.clear());
+fn cancel_orders(brokerage: State<Brokerage>, _c: Credentials) {
+    brokerage.inner().modify_orders(|orders| {
+        for order in orders.values_mut() {
+            match order.status {
+                OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
+                _ => order
+                    .cancel()
+                    .expect("All other statuses should be cancelable"),
+            }
+        }
+    })
 }
 
 #[delete("/orders/<id>")]
-fn delete_order_by_id(
-    simulator: State<Simulator>,
-    _c: Credentials,
-    id: Uuid,
-) -> Result<(), NotFound<String>> {
+fn cancel_order_by_id(brokerage: State<Brokerage>, _c: Credentials, id: Uuid) -> Result<()> {
     let id: uuid::Uuid = convert_uuid(id);
-    let order = simulator.inner().get_order(id);
-    match order {
-        Some(_) => {
-            simulator.inner().modify_orders(|o| {
-                o.remove(&id);
-            });
-            Ok(())
-        }
-        None => Err(NotFound(format!(
-            "{{\"code\":40410000,\"message\":order not found for {}}}",
-            id
-        ))),
-    }
+    brokerage
+        .inner()
+        .modify_order(id, |o| -> Result<()> { o.cancel() })
 }
 
 #[get("/positions")]
-fn get_positions(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = simulator
+fn get_positions(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Position>> {
+    let positions: Vec<Position> = brokerage
         .inner()
         .get_positions()
         .values_mut()
@@ -81,22 +77,22 @@ fn get_positions(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Posit
 
 #[get("/positions/<symbol>")]
 fn get_position_by_symbol(
-    simulator: State<Simulator>,
+    brokerage: State<Brokerage>,
     _c: Credentials,
     symbol: String,
-) -> Result<Json<Position>, NotFound<String>> {
-    let position: Option<Position> = simulator.inner().get_position(symbol);
+) -> Result<Json<Position>> {
+    let position: Option<Position> = brokerage.inner().get_position(symbol);
     match position {
         Some(x) => Ok(Json(x)),
-        None => Err(NotFound(
-            "{\"code\":40410000,\"message\":position does not exist}".to_string(),
-        )),
+        None => Err(Error::NotFound {
+            msg: "{\"code\":40410000,\"message\":position does not exist}".to_string(),
+        }),
     }
 }
 
 #[post("/orders", format = "json", data = "<oi>")]
-fn post_order(simulator: State<Simulator>, _c: Credentials, oi: Json<OrderIntent>) -> Json<Order> {
-    let order = simulator.inner().post_order(oi.0);
+fn post_order(brokerage: State<Brokerage>, _c: Credentials, oi: Json<OrderIntent>) -> Json<Order> {
+    let order = brokerage.inner().post_order(oi.0);
     Json(order)
 }
 
@@ -104,7 +100,7 @@ fn rocket() -> rocket::Rocket {
     let creds = Credentials::new();
     let cash = 10000000.0;
     rocket::ignite()
-        .manage(Simulator::new(cash))
+        .manage(Brokerage::new(cash))
         .attach(creds)
         .mount(
             "/",
@@ -112,8 +108,8 @@ fn rocket() -> rocket::Rocket {
                 get_account,
                 get_orders,
                 get_order_by_id,
-                delete_orders,
-                delete_order_by_id,
+                cancel_orders,
+                cancel_order_by_id,
                 get_positions,
                 get_position_by_symbol,
                 post_order

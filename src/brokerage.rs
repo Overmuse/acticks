@@ -1,27 +1,29 @@
 use crate::account::Account;
+use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
 use crate::order::{Order, OrderIntent, OrderStatus};
 use crate::position::{Position, Side};
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use uuid::Uuid;
 
 #[derive(Clone)]
-pub struct Simulator {
+pub struct Brokerage {
     account: Arc<RwLock<Account>>,
     orders: Arc<RwLock<HashMap<Uuid, Order>>>,
     positions: Arc<RwLock<HashMap<String, Position>>>,
     exchange: Arc<RwLock<Exchange>>,
 }
 
-impl Simulator {
+impl Brokerage {
     pub fn new(cash: f64) -> Self {
         let account = Arc::new(RwLock::new(Account::new(cash)));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         let positions = Arc::new(RwLock::new(HashMap::new()));
         let exchange = Arc::new(RwLock::new(Exchange::new()));
-        Simulator {
+        Brokerage {
             account,
             orders,
             positions,
@@ -33,9 +35,9 @@ impl Simulator {
         self.account.read().unwrap().clone()
     }
 
-    pub fn modify_account<F>(&self, f: F)
+    pub fn modify_account<F, T>(&self, f: F) -> T
     where
-        F: FnOnce(&mut Account),
+        F: FnOnce(&mut Account) -> T,
     {
         f(&mut self.account.write().unwrap())
     }
@@ -45,7 +47,7 @@ impl Simulator {
     }
 
     pub fn get_order(&self, id: Uuid) -> Option<Order> {
-        self.orders.write().unwrap().get_mut(&id).cloned()
+        self.orders.write().unwrap().get(&id).cloned()
     }
 
     pub fn modify_orders<F>(&self, f: F)
@@ -55,12 +57,23 @@ impl Simulator {
         f(&mut self.orders.write().unwrap())
     }
 
+    pub fn modify_order<F, T>(&self, id: Uuid, f: F) -> Result<T>
+    where
+        F: FnOnce(&mut Order) -> Result<T>,
+    {
+        let mut orders = self.orders.write().unwrap();
+        let mut order = orders.get_mut(&id).ok_or(Error::NotFound {
+            msg: "Could not find order".into(),
+        })?;
+        f(&mut order)
+    }
+
     pub fn get_positions(&self) -> HashMap<String, Position> {
         self.positions.read().unwrap().clone()
     }
 
     pub fn get_position(&self, symbol: String) -> Option<Position> {
-        self.positions.write().unwrap().get_mut(&symbol).cloned()
+        self.positions.write().unwrap().get(&symbol).cloned()
     }
 
     pub fn modify_positions<F>(&self, f: F)
@@ -70,11 +83,22 @@ impl Simulator {
         f(&mut self.positions.write().unwrap())
     }
 
+    pub fn modify_position<F>(&self, symbol: String, f: F)
+    where
+        F: FnOnce(&mut Position),
+    {
+        let mut positions = self.positions.write().unwrap();
+        let mut position = positions.get_mut(&symbol).unwrap();
+        f(&mut position)
+    }
+
     pub fn post_order(&self, o: OrderIntent) -> Order {
-        let order: Order = Order::from_intent(o);
+        let mut order: Order = Order::from_intent(o);
         let o2 = order.clone();
         let mut s = self.clone();
         thread::spawn(move || {
+            order.submitted_at = Some(Utc::now());
+            order.updated_at = Some(Utc::now());
             s.modify_orders(|o| {
                 o.insert(order.id, order.clone());
             });
@@ -92,7 +116,6 @@ impl Simulator {
             let time = Some(tf.time);
             order.filled_qty = order.qty;
             order.updated_at = time;
-            order.submitted_at = time;
             order.filled_at = time;
             order.filled_avg_price = Some(tf.price);
             order.status = OrderStatus::Filled;

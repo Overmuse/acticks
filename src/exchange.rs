@@ -1,6 +1,7 @@
+use crate::asset::Asset;
 use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
-use std::collections::{hash_map::RandomState, HashSet};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct TradeFill {
@@ -19,7 +20,7 @@ pub enum MarketStatus {
 }
 
 pub struct Exchange {
-    pub assets: HashSet<String, RandomState>,
+    pub assets: HashMap<String, Asset>,
     pub stored_orders: Vec<Order>,
     pub market_status: MarketStatus,
 }
@@ -27,9 +28,9 @@ pub struct Exchange {
 impl Exchange {
     pub fn new() -> Self {
         Self {
-            assets: HashSet::new(),
+            assets: HashMap::new(),
             stored_orders: vec![],
-            market_status: MarketStatus::PreOpen,
+            market_status: MarketStatus::Open,
         }
     }
 

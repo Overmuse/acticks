@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::errors::{Error, Result};
 use crate::utils::*;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -245,6 +246,23 @@ impl Order {
             status: OrderStatus::New,
             extended_hours: oi.extended_hours,
             legs: None,
+        }
+    }
+
+    pub fn cancel(&mut self) -> Result<()> {
+        match self.status {
+            OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => {
+                Err(Error::NotFound {
+                    msg: "Couldn't cancel order".to_string(),
+                })
+            }
+            _ => {
+                let time = Some(Utc::now());
+                self.status = OrderStatus::Canceled;
+                self.canceled_at = time;
+                self.updated_at = time;
+                Ok(())
+            }
         }
     }
 }
