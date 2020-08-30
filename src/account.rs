@@ -18,46 +18,46 @@ pub enum AccountStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Account {
-    id: Uuid,
-    account_number: String,
-    status: AccountStatus,
-    currency: String,
+    pub id: Uuid,
+    pub account_number: String,
+    pub status: AccountStatus,
+    pub currency: String,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    cash: f64,
+    pub cash: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    portfolio_value: f64,
-    pattern_day_trader: bool,
-    trade_suspended_by_user: bool,
-    trading_blocked: bool,
-    transfers_blocked: bool,
-    account_blocked: bool,
-    created_at: DateTime<Utc>,
-    shorting_enabled: bool,
+    pub portfolio_value: f64,
+    pub pattern_day_trader: bool,
+    pub trade_suspended_by_user: bool,
+    pub trading_blocked: bool,
+    pub transfers_blocked: bool,
+    pub account_blocked: bool,
+    pub created_at: DateTime<Utc>,
+    pub shorting_enabled: bool,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    long_market_value: f64,
+    pub long_market_value: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    short_market_value: f64,
+    pub short_market_value: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    equity: f64,
+    pub equity: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    last_equity: f64,
+    pub last_equity: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    multiplier: f64,
+    pub multiplier: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    buying_power: f64,
+    pub buying_power: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    initial_margin: f64,
+    pub initial_margin: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    maintenance_margin: f64,
+    pub maintenance_margin: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    sma: f64,
-    daytrade_count: u32,
+    pub sma: f64,
+    pub daytrade_count: u32,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    last_maintenance_margin: f64,
+    pub last_maintenance_margin: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    daytrading_buying_power: f64,
+    pub daytrading_buying_power: f64,
     #[serde(serialize_with = "to_string", deserialize_with = "from_str")]
-    regt_buying_power: f64,
+    pub regt_buying_power: f64,
 }
 
 impl Account {

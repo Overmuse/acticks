@@ -1,6 +1,14 @@
 use crate::order::{Order, OrderStatus, OrderType, Side};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::collections::{hash_map::RandomState, HashSet};
+
+#[derive(Clone)]
+pub struct TradeFill {
+    pub time: DateTime<Utc>,
+    pub qty: i32,
+    pub price: f64,
+    pub order: Order,
+}
 
 pub struct Exchange {
     pub assets: HashSet<String, RandomState>,
@@ -15,7 +23,7 @@ impl Exchange {
         }
     }
 
-    pub fn transmit_order(&mut self, o: Order) -> Option<Order> {
+    pub fn transmit_order(&mut self, o: Order) -> Option<TradeFill> {
         if self.is_open() {
             match o.order_type {
                 OrderType::Market => {
@@ -34,18 +42,16 @@ impl Exchange {
         true
     }
 
-    pub fn execute(&mut self, mut order: Order, price: f64) -> Order {
-        let time = Some(Utc::now());
-        order.filled_qty = order.qty;
-        order.updated_at = time;
-        order.submitted_at = time;
-        order.filled_at = time;
-        order.filled_avg_price = Some(price);
-        order.status = OrderStatus::Filled;
-        order
+    pub fn execute(&mut self, mut order: Order, price: f64) -> TradeFill {
+        TradeFill {
+            time: Utc::now(),
+            qty: order.qty as i32,
+            price,
+            order: order.clone(),
+        }
     }
 
-    pub fn execute_or_store(&mut self, o: Order) -> Option<Order> {
+    pub fn execute_or_store(&mut self, o: Order) -> Option<TradeFill> {
         let price = self.get_price(&o.symbol);
         if is_marketable(&o, price) {
             Some(self.execute(o, price))

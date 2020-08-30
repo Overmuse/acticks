@@ -1,5 +1,5 @@
 use crate::account::Account;
-use crate::exchange::Exchange;
+use crate::exchange::{Exchange, TradeFill};
 use crate::order::{Order, OrderIntent, OrderStatus};
 use crate::position::{Position, Side};
 use chrono::Utc;
@@ -76,41 +76,67 @@ impl Simulator {
     pub fn post_order(&self, o: OrderIntent) -> Order {
         let order: Order = Order::from_intent(o);
         let o2 = order.clone();
-        let s = self.clone();
+        let mut s = self.clone();
         thread::spawn(move || {
             s.modify_orders(|o| {
                 o.insert(order.id, order.clone());
             });
-            let executed = s.exchange.write().unwrap().transmit_order(order);
-            if let Some(o) = executed {
-                s.modify_orders(|os| {
-                    os.insert(o.id, o.clone());
-                });
-                s.modify_positions(|ps| {
-                    ps.insert(
-                        o.symbol.clone(),
-                        Position {
-                            asset_id: o.asset_id,
-                            symbol: o.symbol,
-                            exchange: "NYSE".to_string(),
-                            asset_class: o.asset_class,
-                            avg_entry_price: 100.0,
-                            qty: o.qty as i32,
-                            side: Side::Long,
-                            market_value: o.qty as f64 * 100.0,
-                            cost_basis: o.qty as f64 * 100.0,
-                            unrealized_pl: 0.0,
-                            unrealized_plpc: 0.0,
-                            unrealized_intraday_pl: 0.0,
-                            unrealized_intraday_plpc: 0.0,
-                            current_price: 100.0,
-                            lastday_price: 100.0,
-                            change_today: 0.0,
-                        },
-                    );
-                })
+            let potential_fill = s.exchange.write().unwrap().transmit_order(order);
+            if let Some(fill) = potential_fill {
+                s.update_from_fill(&fill);
             }
         });
         o2
+    }
+
+    fn update_from_fill(&mut self, tf: &TradeFill) {
+        self.modify_orders(|os| {
+            let order = os.get_mut(&tf.order.id).unwrap();
+            let time = Some(tf.time);
+            order.filled_qty = order.qty;
+            order.updated_at = time;
+            order.submitted_at = time;
+            order.filled_at = time;
+            order.filled_avg_price = Some(tf.price);
+            order.status = OrderStatus::Filled;
+        });
+        self.modify_positions(|ps| {
+            ps.insert(
+                tf.order.symbol.clone(),
+                Position {
+                    asset_id: tf.order.asset_id,
+                    symbol: tf.order.symbol.clone(),
+                    exchange: "NYSE".to_string(),
+                    asset_class: tf.order.asset_class.clone(),
+                    avg_entry_price: tf.price,
+                    qty: tf.qty as i32,
+                    side: Side::Long,
+                    market_value: tf.qty as f64 * tf.price,
+                    cost_basis: tf.qty as f64 * tf.price,
+                    unrealized_pl: 0.0,
+                    unrealized_plpc: 0.0,
+                    unrealized_intraday_pl: 0.0,
+                    unrealized_intraday_plpc: 0.0,
+                    current_price: tf.price,
+                    lastday_price: tf.price,
+                    change_today: 0.0,
+                },
+            );
+        });
+        self.modify_account(|account| {
+            let cost_basis = tf.price * tf.qty as f64;
+            account.cash -= cost_basis;
+            if tf.qty > 0 {
+                account.long_market_value += cost_basis
+            } else {
+                account.short_market_value -= cost_basis
+            };
+            account.initial_margin += 0.5 * cost_basis;
+            account.daytrade_count += 1;
+            account.buying_power = (account.equity - account.initial_margin).max(0.0) * account.multiplier;
+            account.daytrading_buying_power = account.buying_power;
+            account.regt_buying_power = account.buying_power / 2.;
+
+        })
     }
 }
