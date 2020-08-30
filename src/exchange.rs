@@ -77,6 +77,11 @@ fn is_marketable(o: &Order, price: f64) -> bool {
         (OrderType::Limit { limit_price }, Side::Sell) => *limit_price <= price,
         (OrderType::Stop { stop_price }, Side::Buy) => *stop_price <= price,
         (OrderType::Stop { stop_price }, Side::Sell) => *stop_price >= price,
-        _ => false,
+        (OrderType::StopLimit {limit_price, stop_price,}, Side::Buy) => {
+            *limit_price >= price && price >= *stop_price
+        },
+        (OrderType::StopLimit {limit_price, stop_price,}, Side::Sell) => {
+            *limit_price <= price && price <= *stop_price}
+        ,
     }
 }
