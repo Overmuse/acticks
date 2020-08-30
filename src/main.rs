@@ -25,17 +25,19 @@ fn get_account(simulator: State<Simulator>, _c: Credentials) -> Json<Account> {
 
 #[get("/orders")]
 fn get_orders(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = simulator.inner().get_orders().values_mut().map(|x| x.to_owned()).collect();
+    let orders: Vec<Order> = simulator
+        .inner()
+        .get_orders()
+        .values_mut()
+        .map(|x| x.to_owned())
+        .collect();
     Json(orders)
 }
 
 #[get("/orders/<id>")]
 fn get_order_by_id(simulator: State<Simulator>, _c: Credentials, id: Uuid) -> Json<Order> {
     let id: uuid::Uuid = convert_uuid(id);
-    let order: Order = simulator
-        .inner()
-        .get_order(id)
-        .unwrap();
+    let order: Order = simulator.inner().get_order(id).unwrap();
     Json(order)
 }
 
@@ -68,7 +70,12 @@ fn delete_order_by_id(
 
 #[get("/positions")]
 fn get_positions(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = simulator.inner().get_positions().values_mut().map(|x| x.to_owned()).collect();
+    let positions: Vec<Position> = simulator
+        .inner()
+        .get_positions()
+        .values_mut()
+        .map(|x| x.to_owned())
+        .collect();
     Json(positions)
 }
 
