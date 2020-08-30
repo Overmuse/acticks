@@ -1,4 +1,4 @@
-use crate::order::{Order, OrderStatus, OrderType, Side};
+use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
 use std::collections::{hash_map::RandomState, HashSet};
 
@@ -42,7 +42,7 @@ impl Exchange {
         true
     }
 
-    pub fn execute(&mut self, mut order: Order, price: f64) -> TradeFill {
+    pub fn execute(&mut self, order: Order, price: f64) -> TradeFill {
         TradeFill {
             time: Utc::now(),
             qty: order.qty as i32,
@@ -65,22 +65,18 @@ impl Exchange {
         self.stored_orders.push(o);
     }
 
-    pub fn get_price(&self, symbol: &str) -> f64 {
+    pub fn get_price(&self, _symbol: &str) -> f64 {
         100.0
     }
 }
 
 fn is_marketable(o: &Order, price: f64) -> bool {
-    match o.order_type {
-        OrderType::Market => true,
-        OrderType::Limit { limit_price } => match o.side {
-            Side::Buy => limit_price >= price,
-            Side::Sell => limit_price <= price,
-        },
-        OrderType::Stop { stop_price } => match o.side {
-            Side::Buy => stop_price <= price,
-            Side::Sell => stop_price >= price,
-        },
+    match (&o.order_type, &o.side) {
+        (OrderType::Market, _) => true,
+        (OrderType::Limit { limit_price }, Side::Buy) => *limit_price >= price,
+        (OrderType::Limit { limit_price }, Side::Sell) => *limit_price <= price,
+        (OrderType::Stop { stop_price }, Side::Buy) => *stop_price <= price,
+        (OrderType::Stop { stop_price }, Side::Sell) => *stop_price >= price,
         _ => false,
     }
 }

@@ -2,7 +2,6 @@ use crate::account::Account;
 use crate::exchange::{Exchange, TradeFill};
 use crate::order::{Order, OrderIntent, OrderStatus};
 use crate::position::{Position, Side};
-use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -71,8 +70,6 @@ impl Simulator {
         f(&mut self.positions.write().unwrap())
     }
 
-    pub fn schedule_order(&self, o: Order) {}
-
     pub fn post_order(&self, o: OrderIntent) -> Order {
         let order: Order = Order::from_intent(o);
         let o2 = order.clone();
@@ -133,10 +130,10 @@ impl Simulator {
             };
             account.initial_margin += 0.5 * cost_basis;
             account.daytrade_count += 1;
-            account.buying_power = (account.equity - account.initial_margin).max(0.0) * account.multiplier;
+            account.buying_power =
+                (account.equity - account.initial_margin).max(0.0) * account.multiplier;
             account.daytrading_buying_power = account.buying_power;
             account.regt_buying_power = account.buying_power / 2.;
-
         })
     }
 }
