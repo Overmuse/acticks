@@ -2,34 +2,27 @@ use crate::account::Account;
 use crate::order::{Order, OrderIntent, OrderStatus};
 use crate::position::{Position, Side};
 use chrono::Utc;
-use rdkafka::config::ClientConfig;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use serde_json;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Simulator {
     account: Arc<RwLock<Account>>,
-    orders: Arc<RwLock<Vec<Order>>>,
-    positions: Arc<RwLock<Vec<Position>>>,
-    producer: FutureProducer,
+    orders: Arc<RwLock<HashMap<Uuid, Order>>>,
+    positions: Arc<RwLock<HashMap<String, Position>>>,
 }
 
 impl Simulator {
     pub fn new(cash: f64) -> Self {
         let account = Arc::new(RwLock::new(Account::new(cash)));
-        let orders = Arc::new(RwLock::new(vec![]));
-        let positions = Arc::new(RwLock::new(vec![]));
-        let producer = ClientConfig::new()
-            .set("bootstrap.servers", "localhost:9092")
-            .create()
-            .unwrap();
+        let orders = Arc::new(RwLock::new(HashMap::new()));
+        let positions = Arc::new(RwLock::new(HashMap::new()));
         Simulator {
             account,
             orders,
             positions,
-            producer,
         }
     }
 
@@ -44,33 +37,39 @@ impl Simulator {
         f(&mut self.account.write().unwrap())
     }
 
-    pub fn get_orders(&self) -> Vec<Order> {
+    pub fn get_orders(&self) -> HashMap<Uuid, Order> {
         self.orders.read().unwrap().clone()
+    }
+
+    pub fn get_order(&self, id: Uuid) -> Option<Order> {
+        self.orders.write().unwrap().get_mut(&id).cloned()
     }
 
     pub fn modify_orders<F>(&self, f: F)
     where
-        F: FnOnce(&mut Vec<Order>),
+        F: FnOnce(&mut HashMap<Uuid, Order>),
     {
         f(&mut self.orders.write().unwrap())
     }
 
-    pub fn get_positions(&self) -> Vec<Position> {
+    pub fn get_positions(&self) -> HashMap<String, Position> {
         self.positions.read().unwrap().clone()
+    }
+
+    pub fn get_position(&self, symbol: String) -> Option<Position> {
+        self.positions.write().unwrap().get_mut(&symbol).cloned()
     }
 
     pub fn modify_positions<F>(&self, f: F)
     where
-        F: FnOnce(&mut Vec<Position>),
+        F: FnOnce(&mut HashMap<String, Position>),
     {
         f(&mut self.positions.write().unwrap())
     }
 
     pub fn schedule_order(&self, o: Order) {
-        let orders = self.get_orders();
-        let idx = &orders.iter().position(|o2| o2.id.to_hyphenated().to_string() == o.id.to_hyphenated().to_string()).unwrap();
         self.modify_orders(|os| {
-            let mut order = &mut os[*idx];
+            let mut order = os.get_mut(&o.id).unwrap();
             let time = Some(Utc::now());
             order.filled_qty = order.qty;
             order.updated_at = time;
@@ -80,7 +79,8 @@ impl Simulator {
             order.status = OrderStatus::Filled;
         });
         self.modify_positions(|ps| {
-            ps.push(Position {
+            ps.insert(o.symbol.clone(), 
+               Position {
                 asset_id: o.asset_id,
                 symbol: o.symbol,
                 exchange: "NYSE".to_string(),
@@ -104,13 +104,8 @@ impl Simulator {
 
     pub fn post_order(&self, o: OrderIntent) -> Order {
         let order: Order = Order::from_intent(o);
-        self.modify_orders(|o| o.push(order.clone()));
+        self.modify_orders(|o| {o.insert(order.id, order.clone());});
         let o2 = order.clone();
-        let payload = &serde_json::to_string(&order).unwrap();
-        self.producer.send(
-            FutureRecord::to("new_orders").key(&order.symbol).payload(payload),
-            0,
-        );
         let s = self.clone();
         thread::spawn(move || {
             s.schedule_order(o2);

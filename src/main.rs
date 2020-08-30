@@ -13,6 +13,10 @@ use simulator::{
     simulator::Simulator,
 };
 
+fn convert_uuid(id: Uuid) -> uuid::Uuid {
+    uuid::Uuid::from_bytes(*id.as_bytes())
+}
+
 #[get("/account", rank = 1)]
 fn get_account(simulator: State<Simulator>, _c: Credentials) -> Json<Account> {
     let account = simulator.inner().get_account();
@@ -21,17 +25,16 @@ fn get_account(simulator: State<Simulator>, _c: Credentials) -> Json<Account> {
 
 #[get("/orders")]
 fn get_orders(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = simulator.inner().get_orders();
+    let orders: Vec<Order> = simulator.inner().get_orders().values_mut().map(|x| x.to_owned()).collect();
     Json(orders)
 }
 
 #[get("/orders/<id>")]
 fn get_order_by_id(simulator: State<Simulator>, _c: Credentials, id: Uuid) -> Json<Order> {
+    let id: uuid::Uuid = convert_uuid(id);
     let order: Order = simulator
         .inner()
-        .get_orders()
-        .into_iter()
-        .find(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string())
+        .get_order(id)
         .unwrap();
     Json(order)
 }
@@ -47,14 +50,12 @@ fn delete_order_by_id(
     _c: Credentials,
     id: Uuid,
 ) -> Result<(), NotFound<String>> {
-    let orders = simulator.inner().get_orders();
-    let idx = &orders
-        .iter()
-        .position(|o| o.id.to_hyphenated().to_string() == id.to_hyphenated().to_string());
-    match idx {
-        Some(x) => {
+    let id: uuid::Uuid = convert_uuid(id);
+    let order = simulator.inner().get_order(id);
+    match order {
+        Some(_) => {
             simulator.inner().modify_orders(|o| {
-                o.remove(*x);
+                o.remove(&id);
             });
             Ok(())
         }
@@ -67,7 +68,7 @@ fn delete_order_by_id(
 
 #[get("/positions")]
 fn get_positions(simulator: State<Simulator>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = simulator.inner().get_positions();
+    let positions: Vec<Position> = simulator.inner().get_positions().values_mut().map(|x| x.to_owned()).collect();
     Json(positions)
 }
 
@@ -77,10 +78,9 @@ fn get_position_by_symbol(
     _c: Credentials,
     symbol: String,
 ) -> Result<Json<Position>, NotFound<String>> {
-    let positions: Vec<Position> = simulator.inner().get_positions();
-    let idx = &positions.iter().position(|p| p.symbol == symbol);
-    match idx {
-        Some(x) => Ok(Json(positions[*x].clone())),
+    let position: Option<Position> = simulator.inner().get_position(symbol);
+    match position {
+        Some(x) => Ok(Json(x)),
         None => Err(NotFound(
             "{\"code\":40410000,\"message\":position does not exist}".to_string(),
         )),
