@@ -2,8 +2,8 @@ use crate::account::Account;
 use crate::asset::Asset;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
-use crate::order::{Order, OrderIntent, OrderStatus};
-use crate::position::{Position, Side};
+use crate::order::{self, Order, OrderIntent, OrderStatus};
+use crate::position::{self, Position};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -109,13 +109,23 @@ impl Brokerage {
         f(&mut self.positions.write().unwrap())
     }
 
-    pub fn modify_position<F>(&self, symbol: String, f: F)
+    pub fn modify_position<F>(&self, symbol: &str, f: F)
     where
         F: FnOnce(&mut Position),
     {
         let mut positions = self.positions.write().unwrap();
-        let mut position = positions.get_mut(&symbol).unwrap();
+        let mut position = positions.get_mut(symbol).unwrap();
         f(&mut position)
+    }
+
+    pub fn close_position(&self, symbol: &str) -> Result<Order> {
+        let position = self.get_position(symbol)?;
+        let order_side = match position.side {
+            position::Side::Long => order::Side::Sell,
+            position::Side::Short => order::Side::Buy,
+        };
+        let order_intent = OrderIntent::new(symbol).qty(position.qty).side(order_side);
+        self.post_order(order_intent)
     }
 
     pub fn post_order(&self, o: OrderIntent) -> Result<Order> {
@@ -149,16 +159,27 @@ impl Brokerage {
             order.status = OrderStatus::Filled;
         });
         self.modify_positions(|ps| {
-            ps.insert(
-                tf.order.symbol.clone(),
-                Position {
+            ps.entry(tf.order.symbol.clone())
+                .and_modify(|p| {
+                    p.qty += tf.qty.abs() as u32;
+                    p.cost_basis += tf.price * tf.qty as f64;
+                    p.market_value = p.qty as f64 * tf.price;
+                    p.current_price = tf.price;
+                })
+                .or_insert(Position {
                     asset_id: asset.id,
                     symbol: tf.order.symbol.clone(),
                     exchange: asset.exchange,
                     asset_class: asset.class,
                     avg_entry_price: tf.price,
-                    qty: tf.qty as i32,
-                    side: Side::Long,
+                    qty: tf.qty.abs() as u32,
+                    side: {
+                        if tf.qty > 0 {
+                            position::Side::Long
+                        } else {
+                            position::Side::Short
+                        }
+                    },
                     market_value: tf.qty as f64 * tf.price,
                     cost_basis: tf.qty as f64 * tf.price,
                     unrealized_pl: 0.0,
@@ -168,8 +189,7 @@ impl Brokerage {
                     current_price: tf.price,
                     lastday_price: tf.price,
                     change_today: 0.0,
-                },
-            );
+                });
         });
         self.modify_account(|account| {
             let cost_basis = tf.price * tf.qty as f64;

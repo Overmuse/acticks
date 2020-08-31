@@ -872,6 +872,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "log 0.4.11",
+ "rand",
  "rocket",
  "rocket_contrib",
  "serde",

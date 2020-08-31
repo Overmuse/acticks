@@ -97,6 +97,14 @@ fn get_position_by_symbol(
     Ok(Json(position))
 }
 
+#[delete("/positions")]
+fn close_positions(brokerage: State<Brokerage>, _c: Credentials) {
+    let positions = brokerage.inner().get_positions();
+    for position in positions.values() {
+        brokerage.inner().close_position(&position.symbol).unwrap();
+    }
+}
+
 #[post("/orders", format = "json", data = "<oi>")]
 fn post_order(
     brokerage: State<Brokerage>,
@@ -126,6 +134,7 @@ fn rocket() -> rocket::Rocket {
                 cancel_order_by_id,
                 get_positions,
                 get_position_by_symbol,
+                close_positions,
                 post_order
             ],
         )

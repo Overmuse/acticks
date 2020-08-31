@@ -1,5 +1,6 @@
 use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
+use rand::Rng;
 
 #[derive(Clone)]
 pub struct TradeFill {
@@ -58,9 +59,13 @@ impl Exchange {
     }
 
     pub fn execute(&mut self, order: Order, price: f64) -> TradeFill {
+        let qty = match order.side {
+            Side::Buy => order.qty as i32,
+            Side::Sell => -(order.qty as i32),
+        };
         TradeFill {
             time: Utc::now(),
-            qty: order.qty as i32,
+            qty,
             price,
             order: order.clone(),
         }
@@ -81,7 +86,8 @@ impl Exchange {
     }
 
     pub fn get_price(&self, _symbol: &str) -> f64 {
-        100.0
+        let mut rng = rand::thread_rng();
+        rng.gen_range(97.0, 103.0)
     }
 }
 
