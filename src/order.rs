@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::asset::{Asset, AssetClass};
 use crate::errors::{Error, Result};
 use crate::utils::*;
 
@@ -180,7 +181,7 @@ impl OrderIntent {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Order {
     pub id: Uuid,
     pub client_order_id: String,
@@ -196,7 +197,7 @@ pub struct Order {
     pub replaces: Option<Uuid>,
     pub asset_id: Uuid,
     pub symbol: String,
-    pub asset_class: String,
+    pub asset_class: AssetClass,
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub qty: u32,
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
@@ -216,7 +217,7 @@ pub struct Order {
 }
 
 impl Order {
-    pub fn from_intent(oi: OrderIntent) -> Order {
+    pub fn from_intent(oi: OrderIntent, a: Asset) -> Order {
         let client_order_id = match oi.client_order_id {
             None => Uuid::new_v4().to_hyphenated().to_string(),
             Some(s) => s,
@@ -234,9 +235,9 @@ impl Order {
             replaced_at: None,
             replaced_by: None,
             replaces: None,
-            asset_id: Uuid::new_v4(),
+            asset_id: a.id,
             symbol: oi.symbol,
-            asset_class: "us_equity".to_owned(),
+            asset_class: a.class,
             qty: oi.qty,
             filled_qty: 0,
             order_type: oi.order_type,
@@ -252,9 +253,7 @@ impl Order {
     pub fn cancel(&mut self) -> Result<()> {
         match self.status {
             OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => {
-                Err(Error::NotFound {
-                    msg: "Couldn't cancel order".to_string(),
-                })
+                Err(Error::Uncancelable)
             }
             _ => {
                 let time = Some(Utc::now());

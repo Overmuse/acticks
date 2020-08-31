@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::asset::{AssetClass, Exchange};
 use crate::utils::{from_str, to_string};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -14,8 +15,8 @@ pub enum Side {
 pub struct Position {
     pub asset_id: Uuid,
     pub symbol: String,
-    pub exchange: String,
-    pub asset_class: String,
+    pub exchange: Exchange,
+    pub asset_class: AssetClass,
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub avg_entry_price: f64,
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]

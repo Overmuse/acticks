@@ -1,4 +1,5 @@
 use crate::account::Account;
+use crate::asset::Asset;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
 use crate::order::{Order, OrderIntent, OrderStatus};
@@ -12,19 +13,23 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct Brokerage {
     account: Arc<RwLock<Account>>,
+    assets: Arc<RwLock<HashMap<String, Asset>>>,
     orders: Arc<RwLock<HashMap<Uuid, Order>>>,
     positions: Arc<RwLock<HashMap<String, Position>>>,
     exchange: Arc<RwLock<Exchange>>,
 }
 
 impl Brokerage {
-    pub fn new(cash: f64) -> Self {
+    pub fn new(cash: f64, symbols: Vec<String>) -> Self {
         let account = Arc::new(RwLock::new(Account::new(cash)));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         let positions = Arc::new(RwLock::new(HashMap::new()));
         let exchange = Arc::new(RwLock::new(Exchange::new()));
+        let assets: Vec<Asset> = symbols.iter().map(|x| Asset::from_symbol(x)).collect();
+        let mapping: HashMap<String, _> = symbols.iter().cloned().zip(assets).collect();
         Brokerage {
             account,
+            assets: Arc::new(RwLock::new(mapping)),
             orders,
             positions,
             exchange,
@@ -42,12 +47,30 @@ impl Brokerage {
         f(&mut self.account.write().unwrap())
     }
 
+    pub fn get_assets(&self) -> HashMap<String, Asset> {
+        self.assets.read().unwrap().clone()
+    }
+
+    pub fn get_asset(&self, symbol: &str) -> Result<Asset> {
+        self.assets
+            .read()
+            .unwrap()
+            .get(symbol)
+            .cloned()
+            .ok_or(Error::NotFound)
+    }
+
     pub fn get_orders(&self) -> HashMap<Uuid, Order> {
         self.orders.read().unwrap().clone()
     }
 
-    pub fn get_order(&self, id: Uuid) -> Option<Order> {
-        self.orders.write().unwrap().get(&id).cloned()
+    pub fn get_order(&self, id: Uuid) -> Result<Order> {
+        self.orders
+            .read()
+            .unwrap()
+            .get(&id)
+            .cloned()
+            .ok_or(Error::NotFound)
     }
 
     pub fn modify_orders<F>(&self, f: F)
@@ -62,9 +85,7 @@ impl Brokerage {
         F: FnOnce(&mut Order) -> Result<T>,
     {
         let mut orders = self.orders.write().unwrap();
-        let mut order = orders.get_mut(&id).ok_or(Error::NotFound {
-            msg: "Could not find order".into(),
-        })?;
+        let mut order = orders.get_mut(&id).ok_or(Error::NotFound)?;
         f(&mut order)
     }
 
@@ -72,8 +93,13 @@ impl Brokerage {
         self.positions.read().unwrap().clone()
     }
 
-    pub fn get_position(&self, symbol: String) -> Option<Position> {
-        self.positions.write().unwrap().get(&symbol).cloned()
+    pub fn get_position(&self, symbol: &str) -> Result<Position> {
+        self.positions
+            .read()
+            .unwrap()
+            .get(symbol)
+            .cloned()
+            .ok_or(Error::NotFound)
     }
 
     pub fn modify_positions<F>(&self, f: F)
@@ -92,8 +118,9 @@ impl Brokerage {
         f(&mut position)
     }
 
-    pub fn post_order(&self, o: OrderIntent) -> Order {
-        let mut order: Order = Order::from_intent(o);
+    pub fn post_order(&self, o: OrderIntent) -> Result<Order> {
+        let asset = self.get_asset(&o.symbol)?;
+        let mut order: Order = Order::from_intent(o, asset);
         let o2 = order.clone();
         let mut s = self.clone();
         thread::spawn(move || {
@@ -107,10 +134,11 @@ impl Brokerage {
                 s.update_from_fill(&fill);
             }
         });
-        o2
+        Ok(o2)
     }
 
     fn update_from_fill(&mut self, tf: &TradeFill) {
+        let asset = self.get_asset(&tf.order.symbol).unwrap();
         self.modify_orders(|os| {
             let order = os.get_mut(&tf.order.id).unwrap();
             let time = Some(tf.time);
@@ -124,10 +152,10 @@ impl Brokerage {
             ps.insert(
                 tf.order.symbol.clone(),
                 Position {
-                    asset_id: tf.order.asset_id,
+                    asset_id: asset.id,
                     symbol: tf.order.symbol.clone(),
-                    exchange: "NYSE".to_string(),
-                    asset_class: tf.order.asset_class.clone(),
+                    exchange: asset.exchange,
+                    asset_class: asset.class,
                     avg_entry_price: tf.price,
                     qty: tf.qty as i32,
                     side: Side::Long,

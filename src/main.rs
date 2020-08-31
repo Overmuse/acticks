@@ -7,9 +7,10 @@ use rocket::State;
 use rocket_contrib::{json::Json, uuid::Uuid};
 use simulator::{
     account::Account,
+    asset::Asset,
     brokerage::Brokerage,
     credentials::Credentials,
-    errors::{Error, Result},
+    errors::Result,
     order::{Order, OrderIntent, OrderStatus},
     position::Position,
 };
@@ -24,22 +25,33 @@ fn get_account(brokerage: State<Brokerage>, _c: Credentials) -> Json<Account> {
     Json(account)
 }
 
+#[get("/assets")]
+fn get_assets(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Asset>> {
+    let assets: Vec<Asset> = brokerage.inner().get_assets().values().cloned().collect();
+    Json(assets)
+}
+
+#[get("/assets/<symbol>")]
+fn get_asset_by_symbol(
+    brokerage: State<Brokerage>,
+    _c: Credentials,
+    symbol: String,
+) -> Result<Json<Asset>> {
+    let asset: Asset = brokerage.inner().get_asset(&symbol)?;
+    Ok(Json(asset))
+}
+
 #[get("/orders")]
 fn get_orders(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = brokerage
-        .inner()
-        .get_orders()
-        .values_mut()
-        .map(|x| x.to_owned())
-        .collect();
+    let orders: Vec<Order> = brokerage.inner().get_orders().values().cloned().collect();
     Json(orders)
 }
 
 #[get("/orders/<id>")]
-fn get_order_by_id(brokerage: State<Brokerage>, _c: Credentials, id: Uuid) -> Json<Order> {
+fn get_order_by_id(brokerage: State<Brokerage>, _c: Credentials, id: Uuid) -> Result<Json<Order>> {
     let id: uuid::Uuid = convert_uuid(id);
-    let order: Order = brokerage.inner().get_order(id).unwrap();
-    Json(order)
+    let order: Order = brokerage.inner().get_order(id)?;
+    Ok(Json(order))
 }
 
 #[delete("/orders")]
@@ -69,8 +81,8 @@ fn get_positions(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Posit
     let positions: Vec<Position> = brokerage
         .inner()
         .get_positions()
-        .values_mut()
-        .map(|x| x.to_owned())
+        .values()
+        .cloned()
         .collect();
     Json(positions)
 }
@@ -81,31 +93,33 @@ fn get_position_by_symbol(
     _c: Credentials,
     symbol: String,
 ) -> Result<Json<Position>> {
-    let position: Option<Position> = brokerage.inner().get_position(symbol);
-    match position {
-        Some(x) => Ok(Json(x)),
-        None => Err(Error::NotFound {
-            msg: "{\"code\":40410000,\"message\":position does not exist}".to_string(),
-        }),
-    }
+    let position = brokerage.inner().get_position(&symbol)?;
+    Ok(Json(position))
 }
 
 #[post("/orders", format = "json", data = "<oi>")]
-fn post_order(brokerage: State<Brokerage>, _c: Credentials, oi: Json<OrderIntent>) -> Json<Order> {
-    let order = brokerage.inner().post_order(oi.0);
-    Json(order)
+fn post_order(
+    brokerage: State<Brokerage>,
+    _c: Credentials,
+    oi: Json<OrderIntent>,
+) -> Result<Json<Order>> {
+    let order = brokerage.inner().post_order(oi.0)?;
+    Ok(Json(order))
 }
 
 fn rocket() -> rocket::Rocket {
     let creds = Credentials::new();
     let cash = 10000000.0;
+    let symbols = vec!["AAPL".into(), "TSLA".into()];
     rocket::ignite()
-        .manage(Brokerage::new(cash))
+        .manage(Brokerage::new(cash, symbols))
         .attach(creds)
         .mount(
             "/",
             routes![
                 get_account,
+                get_assets,
+                get_asset_by_symbol,
                 get_orders,
                 get_order_by_id,
                 cancel_orders,
