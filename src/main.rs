@@ -43,7 +43,8 @@ fn get_asset_by_symbol(
 
 #[get("/orders")]
 fn get_orders(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Order>> {
-    let orders: Vec<Order> = brokerage.inner().get_orders().values().cloned().collect();
+    let mut orders: Vec<Order> = brokerage.inner().get_orders().values().cloned().collect();
+    orders.sort_unstable_by(|a, b| a.created_at.partial_cmp(&b.created_at).unwrap());
     Json(orders)
 }
 
@@ -117,7 +118,7 @@ fn post_order(
 
 fn rocket() -> rocket::Rocket {
     let creds = Credentials::new();
-    let cash = 10000000.0;
+    let cash = 1_000_000.0;
     let symbols = vec!["AAPL".into(), "TSLA".into()];
     rocket::ignite()
         .manage(Brokerage::new(cash, symbols))
@@ -169,7 +170,7 @@ mod test {
     }
 
     #[test]
-    fn get_orders() {
+    fn orders() {
         let client = Client::new(rocket()).unwrap();
         let mut req = client.get("/orders");
         req.add_header(Header::new(
@@ -181,7 +182,8 @@ mod test {
             Uuid::new_v4().to_hyphenated().to_string(),
         ));
 
-        let response = req.dispatch();
+        let mut response = req.dispatch();
         assert_eq!(response.status(), Status::Ok);
+        assert_eq!(response.body_string().unwrap(), "[]");
     }
 }
