@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate rocket;
 
+use rocket::request::Form;
 use rocket::State;
 use rocket_contrib::{json::Json, uuid::Uuid};
 use simulator::{
@@ -41,10 +42,24 @@ fn get_asset_by_symbol(
     Ok(Json(asset))
 }
 
-#[get("/orders")]
-fn get_orders(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Order>> {
+#[derive(FromForm, Debug)]
+struct OrderParams {
+    status: String,
+    limit: i32,
+    after: String,
+    until: String,
+    direction: String,
+    nested: bool,
+}
+
+#[get("/orders?<_data..>")]
+fn get_orders(
+    brokerage: State<Brokerage>,
+    _c: Credentials,
+    _data: Form<OrderParams>,
+) -> Json<Vec<Order>> {
     let mut orders: Vec<Order> = brokerage.inner().get_orders().values().cloned().collect();
-    orders.sort_unstable_by(|a, b| a.created_at.partial_cmp(&b.created_at).unwrap());
+    orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
     Json(orders)
 }
 

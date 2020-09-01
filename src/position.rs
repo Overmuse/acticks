@@ -41,3 +41,13 @@ pub struct Position {
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub change_today: f64,
 }
+
+impl Position {
+    pub fn update_with_price(&mut self, price: f64) {
+        self.market_value = self.qty as f64 * price;
+        self.current_price = price;
+        self.change_today = self.current_price / self.lastday_price - 1.0;
+        self.unrealized_pl = self.market_value - self.cost_basis;
+        self.unrealized_plpc = self.unrealized_pl / self.cost_basis;
+    }
+}

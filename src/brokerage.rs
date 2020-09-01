@@ -149,22 +149,22 @@ impl Brokerage {
 
     fn update_from_fill(&mut self, tf: &TradeFill) {
         let asset = self.get_asset(&tf.order.symbol).unwrap();
-        self.modify_orders(|os| {
-            let order = os.get_mut(&tf.order.id).unwrap();
+        self.modify_order(tf.order.id, |order| {
             let time = Some(tf.time);
             order.filled_qty = order.qty;
             order.updated_at = time;
             order.filled_at = time;
             order.filled_avg_price = Some(tf.price);
             order.status = OrderStatus::Filled;
-        });
+            Ok(())
+        })
+        .unwrap();
         self.modify_positions(|ps| {
             ps.entry(tf.order.symbol.clone())
                 .and_modify(|p| {
                     p.qty += tf.qty.abs() as u32;
-                    p.cost_basis += tf.price * tf.qty as f64;
-                    p.market_value = p.qty as f64 * tf.price;
-                    p.current_price = tf.price;
+                    p.cost_basis += tf.qty.abs() as f64 * tf.price;
+                    p.update_with_price(tf.price);
                 })
                 .or_insert(Position {
                     asset_id: asset.id,
@@ -201,9 +201,8 @@ impl Brokerage {
             };
             account.initial_margin += 0.5 * cost_basis;
             account.daytrade_count += 1;
-            account.buying_power =
+            account.daytrading_buying_power =
                 (account.equity - account.initial_margin).max(0.0) * account.multiplier;
-            account.daytrading_buying_power = account.buying_power;
             account.regt_buying_power = account.buying_power / 2.;
         })
     }

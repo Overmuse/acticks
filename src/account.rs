@@ -62,6 +62,14 @@ pub struct Account {
 
 impl Account {
     pub fn new(cash: f64) -> Self {
+        let (multiplier, daytrading_buying_power, regt_buying_power) = if cash < 2000.0 {
+            (1.0, 0.0, cash)
+        } else if cash < 25000.0 {
+            (2.0, 0.0, 2.0 * cash)
+        } else {
+            (4.0, 4.0 * cash, 2.0 * cash)
+        };
+
         Account {
             id: Uuid::new_v4(),
             account_number: "".to_string(),
@@ -75,20 +83,20 @@ impl Account {
             transfers_blocked: false,
             account_blocked: false,
             created_at: Utc::now(),
-            shorting_enabled: true,
+            shorting_enabled: cash >= 2000.0,
             long_market_value: 0.0,
             short_market_value: 0.0,
             equity: cash,
             last_equity: cash,
-            multiplier: 4.0,
-            buying_power: 4.0 * cash,
+            multiplier,
+            buying_power: multiplier * cash,
             initial_margin: 0.0,
             maintenance_margin: 0.0,
             sma: 0.0,
             daytrade_count: 0,
             last_maintenance_margin: 0.0,
-            daytrading_buying_power: 4.0 * cash,
-            regt_buying_power: 2.0 * cash,
+            daytrading_buying_power,
+            regt_buying_power,
         }
     }
 }
