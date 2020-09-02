@@ -58,7 +58,6 @@ impl Position {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::nearly_equal;
     use serde_json;
     use uuid::Uuid;
     #[test]
@@ -82,13 +81,13 @@ mod test {
             change_today: 0.0,
         };
         pos.update_with_price(105.0);
-        assert!(nearly_equal(pos.market_value, 105.0));
-        assert!(nearly_equal(pos.current_price, 105.0));
-        assert!(nearly_equal(pos.change_today, 0.05));
-        assert!(nearly_equal(pos.unrealized_pl, 25.0));
-        assert!(nearly_equal(pos.unrealized_plpc, 0.3125));
-        assert!(nearly_equal(pos.unrealized_intraday_pl, 5.0));
-        assert!(nearly_equal(pos.unrealized_intraday_plpc, 0.05));
+        assert!((pos.market_value - 105.0).abs() < 0.001);
+        assert!((pos.current_price - 105.0).abs() < 0.001);
+        assert!((pos.change_today - 0.05).abs() < 0.001);
+        assert!((pos.unrealized_pl - 25.0).abs() < 0.001);
+        assert!((pos.unrealized_plpc - 0.3125).abs() < 0.001);
+        assert!((pos.unrealized_intraday_pl - 5.0).abs() < 0.001);
+        assert!((pos.unrealized_intraday_plpc - 0.05).abs() < 0.001);
     }
 
     #[test]

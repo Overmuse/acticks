@@ -21,6 +21,12 @@ impl Credentials {
     }
 }
 
+impl Default for Credentials {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug)]
 pub enum CredentialsError {
     Missing,

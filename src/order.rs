@@ -224,7 +224,7 @@ impl Order {
         };
         Order {
             id: Uuid::new_v4(),
-            client_order_id: client_order_id,
+            client_order_id,
             created_at: Utc::now(),
             updated_at: None,
             submitted_at: None,

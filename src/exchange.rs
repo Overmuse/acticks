@@ -67,7 +67,7 @@ impl Exchange {
             time: Utc::now(),
             qty,
             price,
-            order: order.clone(),
+            order,
         }
     }
 
@@ -88,6 +88,12 @@ impl Exchange {
     pub fn get_price(&self, _symbol: &str) -> f64 {
         let mut rng = rand::thread_rng();
         rng.gen_range(97.0, 103.0)
+    }
+}
+
+impl Default for Exchange {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
