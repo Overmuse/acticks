@@ -53,3 +53,27 @@ impl Asset {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn serde() {
+        let json = r#"
+	{
+	    "id": "904837e3-3b76-47ec-b432-046db621571b",
+	    "class": "us_equity",
+	    "exchange": "NASDAQ",
+	    "symbol": "AAPL",
+	    "status": "active",
+	    "tradable": true,
+	    "marginable": true,
+	    "shortable": true,
+	    "easy_to_borrow": true
+	}"#;
+        let deserialized: Asset = serde_json::from_str(json).unwrap();
+        let _serialized = serde_json::to_string(&deserialized).unwrap();
+    }
+}

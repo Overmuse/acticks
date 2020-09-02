@@ -124,7 +124,9 @@ impl Brokerage {
             position::Side::Long => order::Side::Sell,
             position::Side::Short => order::Side::Buy,
         };
-        let order_intent = OrderIntent::new(symbol).qty(position.qty.abs() as u32).side(order_side);
+        let order_intent = OrderIntent::new(symbol)
+            .qty(position.qty.abs() as u32)
+            .side(order_side);
         self.post_order(order_intent)
     }
 
@@ -195,7 +197,6 @@ impl Brokerage {
                     lastday_price: tf.price,
                     change_today: 0.0,
                 });
-
         });
         self.modify_account(|account| {
             let cost_basis = tf.price * tf.qty as f64;
