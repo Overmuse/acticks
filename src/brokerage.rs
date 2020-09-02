@@ -124,7 +124,7 @@ impl Brokerage {
             position::Side::Long => order::Side::Sell,
             position::Side::Short => order::Side::Buy,
         };
-        let order_intent = OrderIntent::new(symbol).qty(position.qty).side(order_side);
+        let order_intent = OrderIntent::new(symbol).qty(position.qty.abs() as u32).side(order_side);
         self.post_order(order_intent)
     }
 
@@ -162,8 +162,13 @@ impl Brokerage {
         self.modify_positions(|ps| {
             ps.entry(tf.order.symbol.clone())
                 .and_modify(|p| {
-                    p.qty += tf.qty.abs() as u32;
-                    p.cost_basis += tf.qty.abs() as f64 * tf.price;
+                    p.qty += tf.qty;
+                    if p.qty >= 0 {
+                        p.side = position::Side::Long
+                    } else {
+                        p.side = position::Side::Short
+                    };
+                    p.cost_basis += tf.qty as f64 * tf.price;
                     p.update_with_price(tf.price);
                 })
                 .or_insert(Position {
@@ -172,7 +177,7 @@ impl Brokerage {
                     exchange: asset.exchange,
                     asset_class: asset.class,
                     avg_entry_price: tf.price,
-                    qty: tf.qty.abs() as u32,
+                    qty: tf.qty,
                     side: {
                         if tf.qty > 0 {
                             position::Side::Long
@@ -190,6 +195,7 @@ impl Brokerage {
                     lastday_price: tf.price,
                     change_today: 0.0,
                 });
+
         });
         self.modify_account(|account| {
             let cost_basis = tf.price * tf.qty as f64;
@@ -197,7 +203,7 @@ impl Brokerage {
             if tf.qty > 0 {
                 account.long_market_value += cost_basis
             } else {
-                account.short_market_value -= cost_basis
+                account.short_market_value += cost_basis
             };
             account.initial_margin += 0.5 * cost_basis;
             account.daytrade_count += 1;

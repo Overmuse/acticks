@@ -20,7 +20,7 @@ pub struct Position {
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub avg_entry_price: f64,
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
-    pub qty: u32,
+    pub qty: i32,
     pub side: Side,
     #[serde(deserialize_with = "from_str", serialize_with = "to_string")]
     pub market_value: f64,
