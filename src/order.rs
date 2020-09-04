@@ -110,7 +110,7 @@ pub struct TakeProfitSpec {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct StopLossSpec {
     pub stop_price: f32,
-    pub limit_price: f32,
+    pub limit_price: Option<f32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -183,8 +183,8 @@ impl OrderIntent {
         self
     }
 
-    pub fn client_order_id(mut self, client_order_id: String) -> Self {
-        self.client_order_id = Some(client_order_id);
+    pub fn client_order_id(mut self, client_order_id: &str) -> Self {
+        self.client_order_id = Some(client_order_id.into());
         self
     }
 
@@ -326,5 +326,24 @@ mod test {
         let oi: OrderIntent = OrderIntent::new(&a.symbol);
         let o: Order = Order::from_intent(&oi, &a);
         assert_eq!(o.asset_id, a.id);
+    }
+
+    #[test]
+    fn from_builder() {
+        let a: Asset = Asset::from_symbol("TEST");
+        let oi: OrderIntent = OrderIntent::new(&a.symbol)
+            .qty(100)
+            .side(Side::Sell)
+            .order_type(OrderType::Limit { limit_price: 100.0 })
+            .time_in_force(TimeInForce::FOK)
+            .extended_hours(true)
+            .client_order_id("TEST");
+        let o: Order = Order::from_intent(&oi, &a);
+        assert_eq!(o.qty, 100);
+        assert_eq!(o.side, Side::Sell);
+        assert_eq!(o.order_type, OrderType::Limit { limit_price: 100.0 });
+        assert_eq!(o.time_in_force, TimeInForce::FOK);
+        assert!(o.extended_hours);
+        assert_eq!(&o.client_order_id, "TEST");
     }
 }
