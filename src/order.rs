@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::ops::Neg;
 use uuid::Uuid;
 
 use crate::asset::{Asset, AssetClass};
@@ -59,6 +60,7 @@ pub enum OrderStatus {
     DoneForDay,
     Expired,
     Filled,
+    Held,
     New,
     PartiallyFilled,
     PendingCancel,
@@ -89,6 +91,17 @@ impl Default for Side {
     }
 }
 
+impl Neg for Side {
+    type Output = Side;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            Side::Buy => Side::Sell,
+            Side::Sell => Side::Buy,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct TakeProfitSpec {
     pub limit_price: f32,
@@ -109,7 +122,7 @@ pub enum OrderClass {
         stop_loss: StopLossSpec,
     },
     OCO {
-        take_ptofit: TakeProfitSpec,
+        take_profit: TakeProfitSpec,
         stop_loss: StopLossSpec,
     },
     OTO {
@@ -217,10 +230,10 @@ pub struct Order {
 }
 
 impl Order {
-    pub fn from_intent(oi: OrderIntent, a: Asset) -> Order {
-        let client_order_id = match oi.client_order_id {
+    pub fn from_intent(oi: &OrderIntent, a: &Asset) -> Order {
+        let client_order_id = match &oi.client_order_id {
             None => Uuid::new_v4().to_hyphenated().to_string(),
-            Some(s) => s,
+            Some(s) => s.into(),
         };
         Order {
             id: Uuid::new_v4(),
@@ -236,13 +249,13 @@ impl Order {
             replaced_by: None,
             replaces: None,
             asset_id: a.id,
-            symbol: oi.symbol,
-            asset_class: a.class,
+            symbol: oi.symbol.clone(),
+            asset_class: a.class.clone(),
             qty: oi.qty,
             filled_qty: 0,
-            order_type: oi.order_type,
-            side: oi.side,
-            time_in_force: oi.time_in_force,
+            order_type: oi.order_type.clone(),
+            side: oi.side.clone(),
+            time_in_force: oi.time_in_force.clone(),
             filled_avg_price: None,
             status: OrderStatus::New,
             extended_hours: oi.extended_hours,
@@ -263,5 +276,55 @@ impl Order {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn serde() {
+        let json = r#"
+	{
+	  "id": "904837e3-3b76-47ec-b432-046db621571b",
+	  "client_order_id": "904837e3-3b76-47ec-b432-046db621571b",
+	  "created_at": "2018-10-05T05:48:59Z",
+	  "updated_at": "2018-10-05T05:48:59Z",
+	  "submitted_at": "2018-10-05T05:48:59Z",
+	  "filled_at": "2018-10-05T05:48:59Z",
+	  "expired_at": "2018-10-05T05:48:59Z",
+	  "canceled_at": "2018-10-05T05:48:59Z",
+	  "failed_at": "2018-10-05T05:48:59Z",
+	  "replaced_at": "2018-10-05T05:48:59Z",
+	  "replaced_by": "904837e3-3b76-47ec-b432-046db621571b",
+	  "replaces": null,
+	  "asset_id": "904837e3-3b76-47ec-b432-046db621571b",
+	  "symbol": "AAPL",
+	  "asset_class": "us_equity",
+	  "qty": "15",
+	  "filled_qty": "0",
+	  "type": "market",
+	  "side": "buy",
+	  "time_in_force": "day",
+	  "limit_price": "107.00",
+	  "stop_price": "106.00",
+	  "filled_avg_price": "106.00",
+	  "status": "accepted",
+	  "extended_hours": false,
+	  "legs": null
+	}
+	"#;
+        let deserialize: Order = serde_json::from_str(json).unwrap();
+        let _serialize = serde_json::to_string(&deserialize).unwrap();
+    }
+
+    #[test]
+    fn from_intent() {
+        let a: Asset = Asset::from_symbol("TEST");
+        let oi: OrderIntent = OrderIntent::new(&a.symbol);
+        let o: Order = Order::from_intent(&oi, &a);
+        assert_eq!(o.asset_id, a.id);
     }
 }

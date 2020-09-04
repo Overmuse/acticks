@@ -132,7 +132,7 @@ impl Brokerage {
 
     pub fn post_order(&self, o: OrderIntent) -> Result<Order> {
         let asset = self.get_asset(&o.symbol)?;
-        let mut order: Order = Order::from_intent(o, asset);
+        let mut order: Order = Order::from_intent(&o, &asset);
         let o2 = order.clone();
         let mut s = self.clone();
         thread::spawn(move || {
