@@ -104,17 +104,17 @@ impl Neg for Side {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct TakeProfitSpec {
-    pub limit_price: f32,
+    pub limit_price: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct StopLossSpec {
-    pub stop_price: f32,
-    pub limit_price: Option<f32>,
+    pub stop_price: f64,
+    pub limit_price: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "order_class", rename_all = "lowercase")]
 pub enum OrderClass {
     Simple,
     Bracket {
@@ -126,8 +126,77 @@ pub enum OrderClass {
         stop_loss: StopLossSpec,
     },
     OTO {
-        stop_loss: StopLossSpec,
+        take_profit: Option<TakeProfitSpec>,
+        stop_loss: Option<StopLossSpec>,
     },
+}
+
+impl OrderClass {
+    fn to_order(&self, oi: &OrderIntent, a: &Asset) -> Option<Vec<Order>> {
+        match self {
+            Self::Simple => None,
+            Self::Bracket {
+                take_profit,
+                stop_loss,
+            } => None,
+            Self::OCO {
+                take_profit,
+                stop_loss,
+            } => None,
+            Self::OTO {
+                take_profit,
+                stop_loss,
+            } => {
+                let order_type = match (take_profit, stop_loss) {
+                    (Some(TakeProfitSpec { limit_price }), None) => OrderType::Limit {
+                        limit_price: *limit_price,
+                    },
+                    (
+                        None,
+                        Some(StopLossSpec {
+                            stop_price,
+                            limit_price,
+                        }),
+                    ) => match limit_price {
+                        Some(limit_price) => OrderType::StopLimit {
+                            stop_price: *stop_price,
+                            limit_price: *limit_price,
+                        },
+                        None => OrderType::Stop {
+                            stop_price: *stop_price,
+                        },
+                    },
+                    _ => panic!(),
+                };
+                Some(vec![Order {
+                    id: Uuid::new_v4(),
+                    client_order_id: Uuid::new_v4().to_string(),
+                    created_at: Utc::now(),
+                    updated_at: None,
+                    submitted_at: Some(Utc::now()),
+                    filled_at: None,
+                    expired_at: None,
+                    canceled_at: None,
+                    failed_at: None,
+                    replaced_at: None,
+                    replaced_by: None,
+                    replaces: None,
+                    asset_id: a.id,
+                    symbol: oi.symbol.clone(),
+                    asset_class: a.class.clone(),
+                    qty: oi.qty,
+                    filled_qty: 0,
+                    order_type,
+                    side: oi.side.clone().neg(),
+                    time_in_force: oi.time_in_force.clone(),
+                    filled_avg_price: None,
+                    status: OrderStatus::Held,
+                    extended_hours: false,
+                    legs: None,
+                }])
+            }
+        }
+    }
 }
 
 impl Default for OrderClass {
@@ -147,6 +216,7 @@ pub struct OrderIntent {
     pub time_in_force: TimeInForce,
     pub extended_hours: bool,
     pub client_order_id: Option<String>,
+    #[serde(flatten)]
     pub order_class: OrderClass,
 }
 
@@ -230,11 +300,42 @@ pub struct Order {
 }
 
 impl Order {
+    //pub fn new() -> Self {
+    //    Order {
+    //        id: Uuid::new_v4(),
+    //        client_order_id,
+    //        created_at: Utc::now(),
+    //        updated_at: None,
+    //        submitted_at: None,
+    //        filled_at: None,
+    //        expired_at: None,
+    //        canceled_at: None,
+    //        failed_at: None,
+    //        replaced_at: None,
+    //        replaced_by: None,
+    //        replaces: None,
+    //        asset_id: a.id,
+    //        symbol: oi.symbol.clone(),
+    //        asset_class: a.class.clone(),
+    //        qty: oi.qty,
+    //        filled_qty: 0,
+    //        order_type: oi.order_type.clone(),
+    //        side: oi.side.clone(),
+    //        time_in_force: oi.time_in_force.clone(),
+    //        filled_avg_price: None,
+    //        status: OrderStatus::New,
+    //        extended_hours: oi.extended_hours,
+    //        legs,
+    //    }
+    //}
+
     pub fn from_intent(oi: &OrderIntent, a: &Asset) -> Order {
         let client_order_id = match &oi.client_order_id {
             None => Uuid::new_v4().to_hyphenated().to_string(),
             Some(s) => s.into(),
         };
+        let legs = oi.order_class.to_order(oi, a);
+
         Order {
             id: Uuid::new_v4(),
             client_order_id,
@@ -259,7 +360,7 @@ impl Order {
             filled_avg_price: None,
             status: OrderStatus::New,
             extended_hours: oi.extended_hours,
-            legs: None,
+            legs,
         }
     }
 
