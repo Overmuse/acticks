@@ -136,13 +136,13 @@ impl OrderClass {
         match self {
             Self::Simple => None,
             Self::Bracket {
-                take_profit,
-                stop_loss,
-            } => None,
+                take_profit: _,
+                stop_loss: _,
+            } => todo!(),
             Self::OCO {
-                take_profit,
-                stop_loss,
-            } => None,
+                take_profit: _,
+                stop_loss: _,
+            } => todo!(),
             Self::OTO {
                 take_profit,
                 stop_loss,
