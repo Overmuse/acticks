@@ -7,6 +7,12 @@ pub enum AssetClass {
     UsEquity,
 }
 
+impl Default for AssetClass {
+    fn default() -> Self {
+        Self::UsEquity
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Exchange {
     AMEX,

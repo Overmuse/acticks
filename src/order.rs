@@ -171,28 +171,17 @@ impl OrderClass {
                 Some(vec![Order {
                     id: Uuid::new_v4(),
                     client_order_id: Uuid::new_v4().to_string(),
-                    created_at: Utc::now(),
-                    updated_at: None,
+                    created_at: Some(Utc::now()),
                     submitted_at: Some(Utc::now()),
-                    filled_at: None,
-                    expired_at: None,
-                    canceled_at: None,
-                    failed_at: None,
-                    replaced_at: None,
-                    replaced_by: None,
-                    replaces: None,
                     asset_id: a.id,
                     symbol: oi.symbol.clone(),
                     asset_class: a.class.clone(),
                     qty: oi.qty,
-                    filled_qty: 0,
                     order_type,
                     side: oi.side.clone().neg(),
                     time_in_force: oi.time_in_force.clone(),
-                    filled_avg_price: None,
                     status: OrderStatus::Held,
-                    extended_hours: false,
-                    legs: None,
+                    ..Default::default()
                 }])
             }
         }
@@ -264,11 +253,11 @@ impl OrderIntent {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Order {
     pub id: Uuid,
     pub client_order_id: String,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub submitted_at: Option<DateTime<Utc>>,
     pub filled_at: Option<DateTime<Utc>>,
@@ -339,28 +328,18 @@ impl Order {
         Order {
             id: Uuid::new_v4(),
             client_order_id,
-            created_at: Utc::now(),
-            updated_at: None,
-            submitted_at: None,
-            filled_at: None,
-            expired_at: None,
-            canceled_at: None,
-            failed_at: None,
-            replaced_at: None,
-            replaced_by: None,
-            replaces: None,
+            created_at: Some(Utc::now()),
             asset_id: a.id,
             symbol: oi.symbol.clone(),
             asset_class: a.class.clone(),
             qty: oi.qty,
-            filled_qty: 0,
             order_type: oi.order_type.clone(),
             side: oi.side.clone(),
             time_in_force: oi.time_in_force.clone(),
-            filled_avg_price: None,
             status: OrderStatus::New,
             extended_hours: oi.extended_hours,
             legs,
+            ..Default::default()
         }
     }
 
