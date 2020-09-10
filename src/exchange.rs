@@ -1,6 +1,7 @@
+use crate::asset::Asset;
 use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct TradeFill {
@@ -21,13 +22,21 @@ pub enum MarketStatus {
 pub struct Exchange {
     pub stored_orders: Vec<Order>,
     pub market_status: MarketStatus,
+    pub assets: Vec<Asset>,
+    pub prices: HashMap<String, f64>,
 }
 
 impl Exchange {
-    pub fn new() -> Self {
+    pub fn new(assets: Vec<Asset>) -> Self {
+        let mut prices = HashMap::new();
+        assets.iter().for_each(|a| {
+            prices.insert(a.symbol.clone(), 100.0);
+        });
         Self {
             stored_orders: vec![],
             market_status: MarketStatus::Open,
+            assets,
+            prices,
         }
     }
 
@@ -58,7 +67,7 @@ impl Exchange {
         todo!()
     }
 
-    pub fn execute(&mut self, order: Order, price: f64) -> TradeFill {
+    pub fn execute(&self, order: Order, price: f64) -> TradeFill {
         let qty = match order.side {
             Side::Buy => order.qty as i32,
             Side::Sell => -(order.qty as i32),
@@ -85,15 +94,31 @@ impl Exchange {
         self.stored_orders.push(o);
     }
 
-    pub fn get_price(&self, _symbol: &str) -> f64 {
-        let mut rng = rand::thread_rng();
-        rng.gen_range(97.0, 103.0)
+    pub fn get_price(&self, symbol: &str) -> f64 {
+        *self.prices.get(symbol).unwrap()
+    }
+
+    pub fn update_price(&mut self, symbol: &str, price: f64) -> Vec<TradeFill> {
+        self.prices
+            .entry(symbol.to_string())
+            .and_modify(|e| *e = price)
+            .or_insert(price);
+        let marketable_orders: Vec<Order> = self
+            .stored_orders
+            .drain_filter(|o| o.symbol == symbol && is_marketable(o, price))
+            .collect();
+
+        marketable_orders
+            .iter()
+            .map(|o| self.execute(o.clone(), price))
+            .collect()
     }
 }
 
 impl Default for Exchange {
     fn default() -> Self {
-        Self::new()
+        let assets: Vec<Asset> = vec![];
+        Self::new(assets)
     }
 }
 

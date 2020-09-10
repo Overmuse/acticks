@@ -24,8 +24,8 @@ impl Brokerage {
         let account = Arc::new(RwLock::new(Account::new(cash)));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         let positions = Arc::new(RwLock::new(HashMap::new()));
-        let exchange = Arc::new(RwLock::new(Exchange::new()));
         let assets: Vec<Asset> = symbols.iter().map(|x| Asset::from_symbol(x)).collect();
+        let exchange = Arc::new(RwLock::new(Exchange::new(assets.clone())));
         let mapping: HashMap<String, _> = symbols.iter().cloned().zip(assets).collect();
         Brokerage {
             account,
@@ -130,11 +130,18 @@ impl Brokerage {
         self.post_order(order_intent)
     }
 
+    pub fn update_price(&self, symbol: String, price: f64) {
+        let potential_fills = self.exchange.write().unwrap().update_price(&symbol, price);
+        potential_fills
+            .iter()
+            .for_each(|fill| self.update_from_fill(fill));
+    }
+
     pub fn post_order(&self, o: OrderIntent) -> Result<Order> {
         let asset = self.get_asset(&o.symbol)?;
         let mut order: Order = Order::from_intent(&o, &asset);
         let o2 = order.clone();
-        let mut s = self.clone();
+        let s = self.clone();
         thread::spawn(move || {
             order.submitted_at = Some(Utc::now());
             order.updated_at = Some(Utc::now());
@@ -149,7 +156,7 @@ impl Brokerage {
         Ok(o2)
     }
 
-    fn update_from_fill(&mut self, tf: &TradeFill) {
+    fn update_from_fill(&self, tf: &TradeFill) {
         let asset = self.get_asset(&tf.order.symbol).unwrap();
         self.modify_order(tf.order.id, |order| {
             let time = Some(tf.time);

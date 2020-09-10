@@ -19,6 +19,11 @@ fn convert_uuid(id: Uuid) -> uuid::Uuid {
     uuid::Uuid::from_bytes(*id.as_bytes())
 }
 
+#[post("/internal/price/<symbol>/<price>")]
+fn update_price(brokerage: State<Brokerage>, symbol: String, price: f64) {
+    brokerage.inner().update_price(symbol, price);
+}
+
 #[get("/account", rank = 1)]
 fn get_account(brokerage: State<Brokerage>, _c: Credentials) -> Json<Account> {
     let account = brokerage.inner().get_account();
@@ -136,7 +141,8 @@ fn rocket() -> rocket::Rocket {
                 get_positions,
                 get_position_by_symbol,
                 close_positions,
-                post_order
+                post_order,
+                update_price,
             ],
         )
 }

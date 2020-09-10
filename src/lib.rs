@@ -1,3 +1,4 @@
+#![feature(drain_filter)]
 pub mod account;
 pub mod account_configurations;
 pub mod asset;
