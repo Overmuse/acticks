@@ -3,7 +3,6 @@ pub mod account;
 pub mod account_configurations;
 pub mod asset;
 pub mod brokerage;
-//pub mod credentials;
 pub mod errors;
 pub mod exchange;
 pub mod market;

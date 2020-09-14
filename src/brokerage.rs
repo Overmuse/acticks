@@ -7,7 +7,6 @@ use crate::position::{self, Position};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::thread;
 use uuid::Uuid;
 
 #[derive(Clone)]
