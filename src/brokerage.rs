@@ -149,7 +149,7 @@ impl Brokerage {
                 o.insert(order.id, order.clone());
             });
             let potential_fill = s.exchange.write().unwrap().transmit_order(order);
-            if let Some(fill) = potential_fill {
+            if let Some(fill) = potential_fill.await {
                 s.update_from_fill(&fill);
             }
         });

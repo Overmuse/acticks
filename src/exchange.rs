@@ -3,6 +3,7 @@ use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::future::Future;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 #[derive(Clone, Debug)]
@@ -13,27 +14,25 @@ pub struct TradeFill {
     pub order: Order,
 }
 
-struct OrderFuture {
+pub struct OrderFuture {
     shared_state: Arc<Mutex<SharedState>>,
 }
 
 struct SharedState {
     order: Order,
-    marketable: bool,
-    price: Option<f64>,
+    price: f64,
     waker: Option<Waker>,
 }
 
 impl OrderFuture {
-    fn new(order: Order) -> Self {
+    fn new(order: Order, price: f64) -> Self {
         let shared_state = SharedState {
             order,
-            marketable: false,
-            price: None,
+            price,
             waker: None,
         };
         Self {
-            Arc::new(Mutex::new(shared_state))
+            shared_state: Arc::new(Mutex::new(shared_state)),
         }
     }
 }
@@ -43,13 +42,25 @@ impl Future for OrderFuture {
 
     fn poll(self: std::pin::Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
         let mut shared_state = self.shared_state.lock().unwrap();
-        if self.order.status == crate::order::OrderStatus::Canceled {
+        let order = &shared_state.order;
+        let price = shared_state.price;
+        if order.status == crate::order::OrderStatus::Canceled {
             return Poll::Ready(None);
         }
-        if is_marketable(&self.order, price) {
-            Poll::Ready(Some(self.exchange.execute(self.order.clone(), price)))
+        if is_marketable(&order, price) {
+            let qty = match order.side {
+                Side::Buy => order.qty as i32,
+                Side::Sell => -(order.qty as i32),
+            };
+            let tf = TradeFill {
+                time: Utc::now(),
+                qty,
+                price,
+                order: order.clone(),
+            };
+            Poll::Ready(Some(tf))
         } else {
-            self.waker = Some(ctx.waker().clone());
+            shared_state.waker = Some(ctx.waker().clone());
             Poll::Pending
         }
     }
@@ -68,7 +79,6 @@ pub struct Exchange {
     pub market_status: MarketStatus,
     pub assets: Vec<Asset>,
     pub prices: HashMap<String, f64>,
-    wakers: Vec<Waker>,
 }
 
 impl Exchange {
@@ -85,23 +95,10 @@ impl Exchange {
         }
     }
 
-    pub fn transmit_order(&mut self, o: Order) -> Option<TradeFill> {
-        match (&self.market_status, o.extended_hours) {
-            (MarketStatus::Open, _)
-            | (MarketStatus::PreOpen, true)
-            | (MarketStatus::PostClose, true) => match o.order_type {
-                OrderType::Market => {
-                    let price = self.get_price(&o.symbol);
-                    Some(self.execute(o, price))
-                }
-                _ => self.execute_or_store(o),
-            },
-            (MarketStatus::Maintenance, _) => todo!(),
-            _ => {
-                self.store(o);
-                None
-            }
-        }
+    pub fn transmit_order(&mut self, o: Order) -> OrderFuture {
+        let price = self.get_price(&o.symbol);
+        let of = OrderFuture::new(o, price);
+        of
     }
 
     pub fn is_open(&self) -> bool {
