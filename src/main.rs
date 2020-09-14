@@ -1,68 +1,56 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-
-#[macro_use]
-extern crate rocket;
-
-use rocket::State;
-use rocket_contrib::{json::Json, uuid::Uuid};
+use actix_web::middleware::Logger;
+use actix_web::{
+    delete, get, post,
+    web::{Data, Json, Path},
+    App, HttpResponse, HttpServer, Result,
+};
+use env_logger::Env;
 use simulator::{
     account::Account,
     asset::Asset,
     brokerage::Brokerage,
-    credentials::Credentials,
-    errors::Result,
+    //credentials::Credentials,
     order::{Order, OrderIntent, OrderStatus},
     position::Position,
 };
+use uuid::Uuid;
 
-fn convert_uuid(id: Uuid) -> uuid::Uuid {
-    uuid::Uuid::from_bytes(*id.as_bytes())
-}
-
-#[post("/internal/price/<symbol>/<price>")]
-fn update_price(brokerage: State<Brokerage>, symbol: String, price: f64) {
-    brokerage.inner().update_price(symbol, price);
-}
-
-#[get("/account", rank = 1)]
-fn get_account(brokerage: State<Brokerage>, _c: Credentials) -> Json<Account> {
-    let account = brokerage.inner().get_account();
-    Json(account)
+#[get("/account")]
+async fn get_account(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    HttpResponse::Ok().json(brokerage.get_account()).await
 }
 
 #[get("/assets")]
-fn get_assets(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Asset>> {
-    let assets: Vec<Asset> = brokerage.inner().get_assets().values().cloned().collect();
-    Json(assets)
+async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    let assets: Vec<Asset> = brokerage.get_assets().values().cloned().collect();
+    HttpResponse::Ok().json(assets).await
 }
 
-#[get("/assets/<symbol>")]
-fn get_asset_by_symbol(
-    brokerage: State<Brokerage>,
-    _c: Credentials,
-    symbol: String,
-) -> Result<Json<Asset>> {
-    let asset: Asset = brokerage.inner().get_asset(&symbol)?;
-    Ok(Json(asset))
+#[get("/assets/{symbol}")]
+async fn get_asset_by_symbol(
+    brokerage: Data<Brokerage>,
+    symbol: Path<String>,
+) -> Result<HttpResponse> {
+    let asset: Asset = brokerage.get_asset(&symbol)?;
+    HttpResponse::Ok().json(asset).await
 }
 
 #[get("/orders")]
-fn get_orders(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Order>> {
-    let mut orders: Vec<Order> = brokerage.inner().get_orders().values().cloned().collect();
+async fn get_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    let mut orders: Vec<Order> = brokerage.get_orders().values().cloned().collect();
     orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
-    Json(orders)
+    HttpResponse::Ok().json(orders).await
 }
 
-#[get("/orders/<id>")]
-fn get_order_by_id(brokerage: State<Brokerage>, _c: Credentials, id: Uuid) -> Result<Json<Order>> {
-    let id: uuid::Uuid = convert_uuid(id);
-    let order: Order = brokerage.inner().get_order(id)?;
-    Ok(Json(order))
+#[get("/orders/{id}")]
+async fn get_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
+    let order: Order = brokerage.get_order(*id)?;
+    HttpResponse::Ok().json(order).await
 }
 
 #[delete("/orders")]
-fn cancel_orders(brokerage: State<Brokerage>, _c: Credentials) {
-    brokerage.inner().modify_orders(|orders| {
+async fn cancel_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    brokerage.modify_orders(|orders| {
         for order in orders.values_mut() {
             match order.status {
                 OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
@@ -71,84 +59,72 @@ fn cancel_orders(brokerage: State<Brokerage>, _c: Credentials) {
                     .expect("All other statuses should be cancelable"),
             }
         }
-    })
+    });
+    HttpResponse::Ok().await
 }
 
-#[delete("/orders/<id>")]
-fn cancel_order_by_id(brokerage: State<Brokerage>, _c: Credentials, id: Uuid) -> Result<()> {
-    let id: uuid::Uuid = convert_uuid(id);
-    brokerage
-        .inner()
-        .modify_order(id, |o| -> Result<()> { o.cancel() })
+#[delete("/orders/{id}")]
+async fn cancel_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
+    brokerage.modify_order(*id, |o| o.cancel());
+    HttpResponse::Ok().await
 }
 
 #[get("/positions")]
-fn get_positions(brokerage: State<Brokerage>, _c: Credentials) -> Json<Vec<Position>> {
-    let positions: Vec<Position> = brokerage
-        .inner()
-        .get_positions()
-        .values()
-        .cloned()
-        .collect();
-    Json(positions)
+async fn get_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    let positions: Vec<Position> = brokerage.get_positions().values().cloned().collect();
+    HttpResponse::Ok().json(positions).await
 }
 
-#[get("/positions/<symbol>")]
-fn get_position_by_symbol(
-    brokerage: State<Brokerage>,
-    _c: Credentials,
-    symbol: String,
-) -> Result<Json<Position>> {
-    let position = brokerage.inner().get_position(&symbol)?;
-    Ok(Json(position))
+#[get("/positions/{symbol}")]
+async fn get_position_by_symbol(
+    brokerage: Data<Brokerage>,
+    symbol: Path<String>,
+) -> Result<HttpResponse> {
+    let position = brokerage.get_position(&symbol)?;
+    HttpResponse::Ok().json(position).await
 }
 
 #[delete("/positions")]
-fn close_positions(brokerage: State<Brokerage>, _c: Credentials) {
-    let positions = brokerage.inner().get_positions();
+async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    let positions = brokerage.get_positions();
     for position in positions.values() {
-        brokerage.inner().close_position(&position.symbol).unwrap();
+        brokerage.close_position(&position.symbol)?;
     }
+    HttpResponse::Ok().await
 }
 
-#[post("/orders", format = "json", data = "<oi>")]
-fn post_order(
-    brokerage: State<Brokerage>,
-    _c: Credentials,
-    oi: Json<OrderIntent>,
-) -> Result<Json<Order>> {
-    let order = brokerage.inner().post_order(oi.0)?;
-    Ok(Json(order))
+#[post("/orders")]
+async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result<HttpResponse> {
+    let order = brokerage.post_order(oi.into_inner())?;
+    HttpResponse::Ok().json(order).await
 }
 
-fn rocket() -> rocket::Rocket {
-    let creds = Credentials::new();
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    //let creds = Credentials::new();
+    env_logger::from_env(Env::default().default_filter_or("info")).init();
     let cash = 1_000_000.0;
     let symbols = vec!["AAPL".into(), "TSLA".into()];
-    rocket::ignite()
-        .manage(Brokerage::new(cash, symbols))
-        .attach(creds)
-        .mount(
-            "/",
-            routes![
-                get_account,
-                get_assets,
-                get_asset_by_symbol,
-                get_orders,
-                get_order_by_id,
-                cancel_orders,
-                cancel_order_by_id,
-                get_positions,
-                get_position_by_symbol,
-                close_positions,
-                post_order,
-                update_price,
-            ],
-        )
-}
-
-fn main() {
-    rocket().launch();
+    let brokerage = Brokerage::new(cash, symbols);
+    HttpServer::new(move || {
+        App::new()
+            .wrap(Logger::default())
+            .data(brokerage.clone())
+            .service(get_account)
+            .service(get_assets)
+            .service(get_asset_by_symbol)
+            .service(get_orders)
+            .service(get_order_by_id)
+            .service(post_order)
+            .service(cancel_orders)
+            .service(cancel_order_by_id)
+            .service(get_positions)
+            .service(get_position_by_symbol)
+            .service(close_positions)
+    })
+    .bind("127.0.0.1:8000")?
+    .run()
+    .await
 }
 
 #[cfg(test)]

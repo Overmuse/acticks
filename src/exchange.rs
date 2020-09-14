@@ -3,7 +3,7 @@ use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TradeFill {
     pub time: DateTime<Utc>,
     pub qty: i32,
