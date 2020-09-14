@@ -118,7 +118,7 @@ impl Brokerage {
         f(&mut position)
     }
 
-    pub fn close_position(&self, symbol: &str) -> Result<Order> {
+    pub async fn close_position(&self, symbol: &str) -> Result<Order> {
         let position = self.get_position(symbol)?;
         let order_side = match position.side {
             position::Side::Long => order::Side::Sell,
@@ -127,7 +127,7 @@ impl Brokerage {
         let order_intent = OrderIntent::new(symbol)
             .qty(position.qty.abs() as u32)
             .side(order_side);
-        self.post_order(order_intent)
+        self.post_order(order_intent).await
     }
 
     pub fn update_price(&self, symbol: String, price: f64) {
@@ -137,12 +137,12 @@ impl Brokerage {
             .for_each(|fill| self.update_from_fill(fill));
     }
 
-    pub fn post_order(&self, o: OrderIntent) -> Result<Order> {
+    pub async fn post_order(&self, o: OrderIntent) -> Result<Order> {
         let asset = self.get_asset(&o.symbol)?;
         let mut order: Order = Order::from_intent(&o, &asset);
         let o2 = order.clone();
         let s = self.clone();
-        thread::spawn(move || {
+        tokio::spawn(async move {
             order.submitted_at = Some(Utc::now());
             order.updated_at = Some(Utc::now());
             s.modify_orders(|o| {

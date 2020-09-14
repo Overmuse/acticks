@@ -1,29 +1,27 @@
-use rocket::request::Request;
-use rocket::response::{self, Responder};
-use std::fmt;
+use actix_web::{dev::HttpResponseBuilder, error, http::header, http::StatusCode, HttpResponse};
+use derive_more::{Display, Error};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Display, Error)]
 pub enum Error {
+    #[display(fmt = "resource not found")]
     NotFound,
+    #[display(fmt = "target order is no longer cancelable")]
     Uncancelable,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::NotFound => write!(f, "Resource could not be found"),
-            Error::Uncancelable => write!(f, "Target order is no longer cancelable"),
-        }
-    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl<'r> Responder<'r> for Error {
-    fn respond_to(self, _: &Request) -> response::Result<'r> {
-        match self {
-            Error::NotFound => Err(rocket::http::Status::NotFound),
-            Error::Uncancelable => Err(rocket::http::Status::UnprocessableEntity),
+impl error::ResponseError for Error {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponseBuilder::new(self.status_code())
+            .set_header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(self.to_string())
+    }
+
+    fn status_code(&self) -> StatusCode {
+        match *self {
+            Error::NotFound => StatusCode::NOT_FOUND,
+            Error::Uncancelable => StatusCode::UNPROCESSABLE_ENTITY,
         }
     }
 }
