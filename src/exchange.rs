@@ -2,6 +2,8 @@ use crate::asset::Asset;
 use crate::order::{Order, OrderType, Side};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::future::Future;
+use std::task::{Context, Poll, Waker};
 
 #[derive(Clone, Debug)]
 pub struct TradeFill {
@@ -9,6 +11,48 @@ pub struct TradeFill {
     pub qty: i32,
     pub price: f64,
     pub order: Order,
+}
+
+struct OrderFuture {
+    shared_state: Arc<Mutex<SharedState>>,
+}
+
+struct SharedState {
+    order: Order,
+    marketable: bool,
+    price: Option<f64>,
+    waker: Option<Waker>,
+}
+
+impl OrderFuture {
+    fn new(order: Order) -> Self {
+        let shared_state = SharedState {
+            order,
+            marketable: false,
+            price: None,
+            waker: None,
+        };
+        Self {
+            Arc::new(Mutex::new(shared_state))
+        }
+    }
+}
+
+impl Future for OrderFuture {
+    type Output = Option<TradeFill>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+        let mut shared_state = self.shared_state.lock().unwrap();
+        if self.order.status == crate::order::OrderStatus::Canceled {
+            return Poll::Ready(None);
+        }
+        if is_marketable(&self.order, price) {
+            Poll::Ready(Some(self.exchange.execute(self.order.clone(), price)))
+        } else {
+            self.waker = Some(ctx.waker().clone());
+            Poll::Pending
+        }
+    }
 }
 
 pub enum MarketStatus {
@@ -24,6 +68,7 @@ pub struct Exchange {
     pub market_status: MarketStatus,
     pub assets: Vec<Asset>,
     pub prices: HashMap<String, f64>,
+    wakers: Vec<Waker>,
 }
 
 impl Exchange {
