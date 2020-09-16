@@ -5,7 +5,7 @@ pub mod asset;
 pub mod brokerage;
 pub mod errors;
 pub mod exchange;
-pub mod market;
+//pub mod market;
 pub mod order;
 pub mod position;
 mod utils;

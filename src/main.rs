@@ -1,12 +1,10 @@
 use actix_web::middleware::Logger;
 use actix_web::{
-    delete, get, post,
-    web::{Data, Json, Path},
+    web::{self, Data, Json, Path},
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger::Env;
 use simulator::{
-    account::Account,
     asset::Asset,
     brokerage::Brokerage,
     order::{Order, OrderIntent, OrderStatus},
@@ -14,18 +12,15 @@ use simulator::{
 };
 use uuid::Uuid;
 
-#[get("/account")]
 async fn get_account(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     HttpResponse::Ok().json(brokerage.get_account()).await
 }
 
-#[get("/assets")]
 async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     let assets: Vec<Asset> = brokerage.get_assets().values().cloned().collect();
     HttpResponse::Ok().json(assets).await
 }
 
-#[get("/assets/{symbol}")]
 async fn get_asset_by_symbol(
     brokerage: Data<Brokerage>,
     symbol: Path<String>,
@@ -34,20 +29,22 @@ async fn get_asset_by_symbol(
     HttpResponse::Ok().json(asset).await
 }
 
-#[get("/orders")]
 async fn get_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     let mut orders: Vec<Order> = brokerage.get_orders().values().cloned().collect();
     orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
     HttpResponse::Ok().json(orders).await
 }
 
-#[get("/orders/{id}")]
 async fn get_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
     let order: Order = brokerage.get_order(*id)?;
     HttpResponse::Ok().json(order).await
 }
 
-#[delete("/orders")]
+async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result<HttpResponse> {
+    let order = brokerage.post_order(oi.into_inner()).await?;
+    HttpResponse::Ok().json(order).await
+}
+
 async fn cancel_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     brokerage.modify_orders(|orders| {
         for order in orders.values_mut() {
@@ -62,19 +59,16 @@ async fn cancel_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     HttpResponse::Ok().await
 }
 
-#[delete("/orders/{id}")]
 async fn cancel_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
-    brokerage.modify_order(*id, |o| o.cancel());
+    brokerage.modify_order(*id, |o| o.cancel())?;
     HttpResponse::Ok().await
 }
 
-#[get("/positions")]
 async fn get_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     let positions: Vec<Position> = brokerage.get_positions().values().cloned().collect();
     HttpResponse::Ok().json(positions).await
 }
 
-#[get("/positions/{symbol}")]
 async fn get_position_by_symbol(
     brokerage: Data<Brokerage>,
     symbol: Path<String>,
@@ -83,19 +77,12 @@ async fn get_position_by_symbol(
     HttpResponse::Ok().json(position).await
 }
 
-#[delete("/positions")]
 async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     let positions = brokerage.get_positions();
     for position in positions.values() {
         brokerage.close_position(&position.symbol).await?;
     }
     HttpResponse::Ok().await
-}
-
-#[post("/orders")]
-async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result<HttpResponse> {
-    let order = brokerage.post_order(oi.into_inner()).await?;
-    HttpResponse::Ok().json(order).await
 }
 
 #[actix_web::main]
@@ -108,17 +95,17 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .data(brokerage.clone())
-            .service(get_account)
-            .service(get_assets)
-            .service(get_asset_by_symbol)
-            .service(get_orders)
-            .service(get_order_by_id)
-            .service(post_order)
-            .service(cancel_orders)
-            .service(cancel_order_by_id)
-            .service(get_positions)
-            .service(get_position_by_symbol)
-            .service(close_positions)
+            .route("/account", web::get().to(get_account))
+            .route("/assets", web::get().to(get_assets))
+            .route("/assets/{symbol}", web::get().to(get_asset_by_symbol))
+            .route("/orders", web::get().to(get_orders))
+            .route("/orders/{id}", web::get().to(get_order_by_id))
+            .route("/orders", web::post().to(post_order))
+            .route("/orders", web::delete().to(cancel_orders))
+            .route("/orders/{id}", web::delete().to(cancel_order_by_id))
+            .route("/positions", web::get().to(get_positions))
+            .route("/positions/{symbol}", web::get().to(get_position_by_symbol))
+            .route("/positions", web::delete().to(close_positions))
     })
     .bind("127.0.0.1:8000")?
     .run()
@@ -127,23 +114,21 @@ async fn main() -> std::io::Result<()> {
 
 //#[cfg(test)]
 //mod test {
-//    use uuid::Uuid;
+//    use super::*;
+//    use actix_web::{
+//        test::{self, TestRequest},
+//        web, App,
+//    };
+//
+//    fn new_brokerage() -> Brokerage {
+//        Brokerage::new(100.0, vec!["AAPL".into(), "TSLA".into()])
+//    }
 //
 //    #[test]
-//    fn get_account() {
-//        let client = Client::new(rocket()).unwrap();
-//        let mut req = client.get("/account");
-//        req.add_header(Header::new(
-//            "APCA-API-KEY-ID",
-//            Uuid::new_v4().to_hyphenated().to_string(),
-//        ));
-//        req.add_header(Header::new(
-//            "APCA-API-SECRET-KEY",
-//            Uuid::new_v4().to_hyphenated().to_string(),
-//        ));
-//
-//        let response = req.dispatch();
-//        assert_eq!(response.status(), Status::Ok);
+//    fn test_get_orders() {
+//        let req = test::TestRequest::with_uri("/orders").app_data(new_brokerage());
+//        let resp = get_orders(req).await.unwrap();
+//        assert_eq!(resp.status(), StatusCode::OK);
 //    }
 //
 //    #[test]
