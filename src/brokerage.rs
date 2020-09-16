@@ -167,6 +167,7 @@ impl Brokerage {
             Ok(())
         })
         .unwrap();
+        let prev_position = self.get_position(&tf.order.symbol);
         self.modify_positions(|ps| {
             ps.entry(tf.order.symbol.clone())
                 .and_modify(|p| {
@@ -203,14 +204,28 @@ impl Brokerage {
                     lastday_price: tf.price,
                     change_today: 0.0,
                 });
+            ps.retain(|_, v| v.qty != 0);
         });
         self.modify_account(|account| {
             let cost_basis = tf.price * tf.qty as f64;
             account.cash -= cost_basis;
-            if tf.qty > 0 {
-                account.long_market_value += cost_basis
-            } else {
-                account.short_market_value += cost_basis
+            match prev_position {
+                // The implementation here is incorrect, need to update based on market value, not cost
+                // basis
+                Ok(pos) => {
+                    if let position::Side::Long = pos.side {
+                        account.long_market_value += cost_basis
+                    } else {
+                        account.short_market_value += cost_basis
+                    }
+                }
+                Err(_) => {
+                    if tf.qty > 0 {
+                        account.long_market_value += cost_basis
+                    } else {
+                        account.short_market_value += cost_basis
+                    }
+                }
             };
             account.initial_margin += 0.5 * cost_basis;
             account.daytrade_count += 1;

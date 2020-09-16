@@ -41,6 +41,7 @@ async fn get_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<H
 }
 
 async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result<HttpResponse> {
+    println!("{:?}", &oi);
     let order = brokerage.post_order(oi.into_inner()).await?;
     HttpResponse::Ok().json(order).await
 }
@@ -87,9 +88,15 @@ async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::from_env(Env::default().default_filter_or("debug")).init();
     let cash = 1_000_000.0;
-    let symbols = vec!["AAPL".into(), "TSLA".into()];
+    let symbols = vec![
+        "PROP".into(),
+        "IDEX".into(),
+        "WORK".into(),
+        "SUNW".into(),
+        "DRD".into(),
+    ];
     let brokerage = Brokerage::new(cash, symbols);
     HttpServer::new(move || {
         App::new()
@@ -122,7 +129,7 @@ mod test {
     };
 
     fn new_brokerage() -> Brokerage {
-        Brokerage::new(100.0, vec!["AAPL".into(), "TSLA".into()])
+        Brokerage::new(100.0, vec!["PRPO".into(), "WORK".into()])
     }
 
     #[actix_rt::test]
