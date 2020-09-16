@@ -112,40 +112,29 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-//#[cfg(test)]
-//mod test {
-//    use super::*;
-//    use actix_web::{
-//        test::{self, TestRequest},
-//        web, App,
-//    };
-//
-//    fn new_brokerage() -> Brokerage {
-//        Brokerage::new(100.0, vec!["AAPL".into(), "TSLA".into()])
-//    }
-//
-//    #[test]
-//    fn test_get_orders() {
-//        let req = test::TestRequest::with_uri("/orders").app_data(new_brokerage());
-//        let resp = get_orders(req).await.unwrap();
-//        assert_eq!(resp.status(), StatusCode::OK);
-//    }
-//
-//    #[test]
-//    fn orders() {
-//        let client = Client::new(rocket()).unwrap();
-//        let mut req = client.get("/orders");
-//        req.add_header(Header::new(
-//            "APCA-API-KEY-ID",
-//            Uuid::new_v4().to_hyphenated().to_string(),
-//        ));
-//        req.add_header(Header::new(
-//            "APCA-API-SECRET-KEY",
-//            Uuid::new_v4().to_hyphenated().to_string(),
-//        ));
-//
-//        let mut response = req.dispatch();
-//        assert_eq!(response.status(), Status::Ok);
-//        assert_eq!(response.body_string().unwrap(), "[]");
-//    }
-//}
+#[cfg(test)]
+mod test {
+    use super::*;
+    use actix_web::{
+        http::StatusCode,
+        test::{self, TestRequest},
+        web, App,
+    };
+
+    fn new_brokerage() -> Brokerage {
+        Brokerage::new(100.0, vec!["AAPL".into(), "TSLA".into()])
+    }
+
+    #[actix_rt::test]
+    async fn test_get_orders() {
+        let mut app = test::init_service(
+            App::new()
+                .data(new_brokerage())
+                .route("/orders", web::get().to(get_orders)),
+        )
+        .await;
+        let req = TestRequest::get().uri("/orders").to_request();
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+}
