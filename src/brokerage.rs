@@ -1,5 +1,6 @@
 use crate::account::Account;
 use crate::asset::Asset;
+use crate::clock::Clock;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
 use crate::order::{self, Order, OrderIntent, OrderStatus};
@@ -32,6 +33,16 @@ impl Brokerage {
             orders,
             positions,
             exchange,
+        }
+    }
+
+    pub fn get_clock(&self) -> Clock {
+        // TODO: Make this dynamically pull from exchange
+        Clock {
+            timestamp: Utc::now(),
+            is_open: true,
+            next_open: Utc::now(),
+            next_close: Utc::now(),
         }
     }
 

@@ -12,6 +12,10 @@ use simulator::{
 };
 use uuid::Uuid;
 
+async fn get_clock(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    HttpResponse::Ok().json(brokerage.get_clock()).await
+}
+
 async fn get_account(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     HttpResponse::Ok().json(brokerage.get_account()).await
 }
@@ -103,6 +107,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .data(brokerage.clone())
             .route("/account", web::get().to(get_account))
+            .route("/clock", web::get().to(get_clock))
             .route("/assets", web::get().to(get_assets))
             .route("/assets/{symbol}", web::get().to(get_asset_by_symbol))
             .route("/orders", web::get().to(get_orders))
