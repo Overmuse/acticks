@@ -70,6 +70,15 @@ impl Brokerage {
             .ok_or(Error::NotFound)
     }
 
+    pub fn get_asset_by_id(&self, id: &Uuid) -> Result<Asset> {
+        let assets = self.assets.read().unwrap();
+        assets
+            .values()
+            .find(|asset| &asset.id == id)
+            .cloned()
+            .ok_or(Error::NotFound)
+    }
+
     pub fn get_orders(&self) -> HashMap<Uuid, Order> {
         self.orders.read().unwrap().clone()
     }
@@ -79,6 +88,15 @@ impl Brokerage {
             .read()
             .unwrap()
             .get(&id)
+            .cloned()
+            .ok_or(Error::NotFound)
+    }
+
+    pub fn get_order_by_client_id(&self, client_id: &str, _nested: bool) -> Result<Order> {
+        let orders = self.orders.read().unwrap();
+        orders
+            .values()
+            .find(|order| &order.client_order_id == client_id)
             .cloned()
             .ok_or(Error::NotFound)
     }
@@ -240,6 +258,9 @@ impl Brokerage {
             };
             account.initial_margin += 0.5 * cost_basis;
             account.daytrade_count += 1;
+            if account.daytrade_count >= 5 {
+                account.pattern_day_trader = true
+            }
             account.daytrading_buying_power =
                 (account.equity - account.initial_margin).max(0.0) * account.multiplier;
             account.regt_buying_power = account.buying_power / 2.;

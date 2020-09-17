@@ -1,9 +1,10 @@
 use actix_web::middleware::Logger;
 use actix_web::{
-    web::{self, Data, Json, Path},
+    web::{self, Data, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger::Env;
+use serde::Deserialize;
 use simulator::{
     asset::Asset,
     brokerage::Brokerage,
@@ -25,11 +26,13 @@ async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     HttpResponse::Ok().json(assets).await
 }
 
-async fn get_asset_by_symbol(
-    brokerage: Data<Brokerage>,
-    symbol: Path<String>,
-) -> Result<HttpResponse> {
-    let asset: Asset = brokerage.get_asset(&symbol)?;
+async fn get_asset(brokerage: Data<Brokerage>, symbol_or_id: Path<String>) -> Result<HttpResponse> {
+    let possible_id = Uuid::parse_str(&symbol_or_id);
+    println!("{:?}", &possible_id);
+    let asset = match possible_id {
+        Ok(id) => brokerage.get_asset_by_id(&id)?,
+        Err(_) => brokerage.get_asset(&symbol_or_id)?,
+    };
     HttpResponse::Ok().json(asset).await
 }
 
@@ -44,8 +47,22 @@ async fn get_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<H
     HttpResponse::Ok().json(order).await
 }
 
+#[derive(Deserialize)]
+struct OrderQuery {
+    client_order_id: Option<String>,
+    nested: bool,
+}
+
+async fn get_order_by_client_id(
+    brokerage: Data<Brokerage>,
+    params: Query<OrderQuery>,
+) -> Result<HttpResponse> {
+    let order: Order = brokerage
+        .get_order_by_client_id(&params.client_order_id.as_ref().unwrap(), params.nested)?;
+    HttpResponse::Ok().json(order).await
+}
+
 async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result<HttpResponse> {
-    println!("{:?}", &oi);
     let order = brokerage.post_order(oi.into_inner()).await?;
     HttpResponse::Ok().json(order).await
 }
@@ -109,9 +126,13 @@ async fn main() -> std::io::Result<()> {
             .route("/account", web::get().to(get_account))
             .route("/clock", web::get().to(get_clock))
             .route("/assets", web::get().to(get_assets))
-            .route("/assets/{symbol}", web::get().to(get_asset_by_symbol))
+            .route("/assets/{symbol_or_id}", web::get().to(get_asset))
             .route("/orders", web::get().to(get_orders))
             .route("/orders/{id}", web::get().to(get_order_by_id))
+            .route(
+                "/orders:by_client_order_id",
+                web::get().to(get_order_by_client_id),
+            )
             .route("/orders", web::post().to(post_order))
             .route("/orders", web::delete().to(cancel_orders))
             .route("/orders/{id}", web::delete().to(cancel_order_by_id))
