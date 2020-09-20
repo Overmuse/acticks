@@ -96,7 +96,7 @@ impl Brokerage {
         let orders = self.orders.read().unwrap();
         orders
             .values()
-            .find(|order| &order.client_order_id == client_id)
+            .find(|order| order.client_order_id == client_id)
             .cloned()
             .ok_or(Error::NotFound)
     }
