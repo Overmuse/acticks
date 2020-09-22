@@ -4,6 +4,11 @@ use serde_repr::*;
 use tokio::stream::StreamExt;
 use tokio::time::{DelayQueue, Duration};
 
+#[cfg(kafka)]
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+
+use reqwest::Client;
+
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
 #[repr(u8)]
 pub enum Tape {
@@ -18,8 +23,6 @@ fn default_conditions() -> Vec<u8> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Trade {
-    #[serde(rename = "sym")]
-    symbol: String,
     #[serde(rename = "i")]
     trade_id: String,
     #[serde(rename = "x")]
@@ -36,39 +39,81 @@ pub struct Trade {
     tape: Tape,
 }
 
-struct MarketData {
-    trades: Vec<Trade>,
-    queue: DelayQueue<Trade>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TickerTrade(String, Trade);
+
+pub trait Market {
+    fn new(symbols: String, start_date: Date<Utc>, end_date: Date<Utc>) -> Self;
 }
 
-fn get_trades(symbols: Vec<&str>, start_date: Date<Utc>, end_date: Date<Utc>) -> Vec<Trade> {
-    todo!()
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct PolygonResponse {
+    results_count: i32,
+    db_latency: i32,
+    success: bool,
+    ticker: String,
+    results: Vec<Trade>,
 }
 
-impl MarketData {
-    fn new(mut trades: Vec<Trade>) -> Self {
-        trades.sort_by(|t1, t2| t2.timestamp.partial_cmp(&t1.timestamp).unwrap());
+#[derive(Debug)]
+pub struct PolygonMarket {
+    symbols: Vec<String>,
+    data: Vec<TickerTrade>,
+    queue: DelayQueue<TickerTrade>,
+}
+
+impl PolygonMarket {
+    pub fn new(symbols: Vec<String>) -> Self {
         Self {
-            trades,
+            symbols,
+            data: vec![],
             queue: DelayQueue::new(),
         }
     }
 
-    fn initialize_trades(symbols: Vec<&str>, start_date: Date<Utc>, end_date: Date<Utc>) -> Self {
-        let trades = get_trades(symbols, start_date, end_date);
-        Self::new(trades)
+    pub async fn initialize(&mut self) {
+        for symbol in &self.symbols {
+            let mut data = self.download_data(&symbol).await.unwrap();
+            self.data.append(&mut data);
+        }
+        self.data
+            .sort_by(|t1, t2| (t2.1.timestamp.partial_cmp(&t1.1.timestamp)).unwrap());
+
+        self.schedule_trades(1).await;
     }
 
-    fn schedule_trades(&mut self, rate: u64) {
-        let mut prev_message = self.trades.pop().unwrap();
-        self.queue
-            .insert(prev_message.clone(), Duration::from_secs(0));
-        for message in &self.trades {
-            let delay = message.timestamp - prev_message.timestamp;
-            self.queue
-                .insert(message.clone(), Duration::from_millis(delay));
-            prev_message = message.clone();
+    pub async fn schedule_trades(&mut self, rate: u64) {
+        let mut prev_message: Option<TickerTrade> = None;
+        for message in &self.data {
+            println!("{:?}", &prev_message);
+            println!("{:?}", &message);
+            if let Some(prev) = prev_message {
+                let delay = message.1.timestamp - prev.1.timestamp;
+                self.queue
+                    .insert(message.clone(), Duration::from_nanos(delay));
+            } else {
+                self.queue.insert(message.clone(), Duration::from_nanos(0));
+            }
+            prev_message = Some(message.clone());
         }
+    }
+
+    async fn download_data(&self, symbol: &str) -> Result<Vec<TickerTrade>, i32> {
+        let client = Client::new();
+        let url = format!(
+            "https://api.polygon.io/v2/ticks/stocks/trades/{}/2020-09-18?apiKey={}",
+            symbol,
+            std::env::var("POLYGON_KEY").unwrap()
+        );
+        println!("{:?}", url);
+        let req = client.get(&url).send().await.unwrap().text().await.unwrap();
+        let res: PolygonResponse = serde_json::from_str(&req).unwrap();
+        Ok(res
+            .results
+            .iter()
+            .cloned()
+            .map(|t| TickerTrade(symbol.to_string(), t))
+            .collect())
     }
 }
 

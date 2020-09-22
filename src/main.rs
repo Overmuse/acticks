@@ -8,6 +8,7 @@ use serde::Deserialize;
 use simulator::{
     asset::Asset,
     brokerage::Brokerage,
+    market::PolygonMarket,
     order::{Order, OrderIntent, OrderStatus},
     position::Position,
 };
@@ -28,7 +29,6 @@ async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 
 async fn get_asset(brokerage: Data<Brokerage>, symbol_or_id: Path<String>) -> Result<HttpResponse> {
     let possible_id = Uuid::parse_str(&symbol_or_id);
-    println!("{:?}", &possible_id);
     let asset = match possible_id {
         Ok(id) => brokerage.get_asset_by_id(&id)?,
         Err(_) => brokerage.get_asset(&symbol_or_id)?,
@@ -109,7 +109,7 @@ async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("debug")).init();
+    env_logger::from_env(Env::default().default_filter_or("info")).init();
     let cash = 1_000_000.0;
     let symbols = vec![
         "PROP".into(),
@@ -118,6 +118,8 @@ async fn main() -> std::io::Result<()> {
         "SUNW".into(),
         "DRD".into(),
     ];
+    let mut market = PolygonMarket::new(symbols.clone());
+    market.initialize().await;
     let brokerage = Brokerage::new(cash, symbols);
     HttpServer::new(move || {
         App::new()
