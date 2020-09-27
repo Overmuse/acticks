@@ -3,11 +3,13 @@ use crate::asset::Asset;
 use crate::clock::Clock;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
+use crate::market::PolygonMarket;
 use crate::order::{self, Order, OrderIntent, OrderStatus};
 use crate::position::{self, Position};
+use actix_web::web::Data;
 use chrono::Utc;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -20,12 +22,13 @@ pub struct Brokerage {
 }
 
 impl Brokerage {
-    pub fn new(cash: f64, symbols: Vec<String>) -> Self {
+    pub fn new(cash: f64, market: Data<Mutex<PolygonMarket>>) -> Self {
         let account = Arc::new(RwLock::new(Account::new(cash)));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         let positions = Arc::new(RwLock::new(HashMap::new()));
+        let symbols = market.lock().unwrap().symbols.clone();
         let assets: Vec<Asset> = symbols.iter().map(|x| Asset::from_symbol(x)).collect();
-        let exchange = Arc::new(RwLock::new(Exchange::new(assets.clone())));
+        let exchange = Exchange::create(market);
         let mapping: HashMap<String, _> = symbols.iter().cloned().zip(assets).collect();
         Brokerage {
             account,

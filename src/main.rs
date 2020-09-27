@@ -111,19 +111,13 @@ async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 async fn main() -> std::io::Result<()> {
     env_logger::from_env(Env::default().default_filter_or("info")).init();
     let cash = 1_000_000.0;
-    let symbols = vec![
-        "PROP".into(),
-        "IDEX".into(),
-        "WORK".into(),
-        "SUNW".into(),
-        "DRD".into(),
-    ];
-    let mut market = PolygonMarket::new(symbols.clone());
-    market.initialize().await;
-    let brokerage = Brokerage::new(cash, symbols);
+    let symbols = vec!["IDEX".into(), "IDEX".into(), "WORK".into(), "SUNW".into()];
+    let market = PolygonMarket::create(symbols.clone());
+    let brokerage = Brokerage::new(cash, market.clone());
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .data(market.clone())
             .data(brokerage.clone())
             .route("/account", web::get().to(get_account))
             .route("/clock", web::get().to(get_clock))

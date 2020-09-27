@@ -1,7 +1,10 @@
-use crate::asset::Asset;
+use crate::market::{PolygonMarket, TickerTrade};
 use crate::order::{Order, OrderType, Side};
+use actix_web::web::Data;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
+use tokio::stream::StreamExt;
 
 #[derive(Clone, Debug)]
 pub struct TradeFill {
@@ -21,27 +24,37 @@ pub enum MarketStatus {
 
 pub struct Exchange {
     pub stored_orders: Vec<Order>,
-    pub market_status: MarketStatus,
-    pub assets: Vec<Asset>,
     pub prices: HashMap<String, f64>,
 }
 
 impl Exchange {
-    pub fn new(assets: Vec<Asset>) -> Self {
-        let mut prices = HashMap::new();
-        assets.iter().for_each(|a| {
-            prices.insert(a.symbol.clone(), 100.0);
-        });
+    pub fn new() -> Self {
+        let prices = HashMap::new();
         Self {
             stored_orders: vec![],
-            market_status: MarketStatus::Open,
-            assets,
             prices,
         }
     }
 
+    pub fn create(market: Data<Mutex<PolygonMarket>>) -> Arc<RwLock<Self>> {
+        let me = Arc::new(RwLock::new(Exchange::new()));
+        let me2 = me.clone();
+        actix_web::rt::spawn(async move {
+            Exchange::update_loop(me2, market.clone()).await;
+        });
+        me
+    }
+
+    async fn update_loop(me: Arc<RwLock<Self>>, market: Data<Mutex<PolygonMarket>>) {
+        let mut x = market.lock().unwrap();
+        while let Some(msg) = x.queue.next().await {
+            let TickerTrade(ticker, trade) = msg.unwrap().into_inner();
+            me.write().unwrap().update_price(&ticker, trade.price);
+        }
+    }
+
     pub fn transmit_order(&mut self, o: Order) -> Option<TradeFill> {
-        match (&self.market_status, o.extended_hours) {
+        match (&self.market_status(), o.extended_hours) {
             (MarketStatus::Open, _)
             | (MarketStatus::PreOpen, true)
             | (MarketStatus::PostClose, true) => match o.order_type {
@@ -99,6 +112,7 @@ impl Exchange {
     }
 
     pub fn update_price(&mut self, symbol: &str, price: f64) -> Vec<TradeFill> {
+        println!("{}, {}", &symbol, price);
         self.prices
             .entry(symbol.to_string())
             .and_modify(|e| *e = price)
@@ -115,12 +129,12 @@ impl Exchange {
     }
 }
 
-impl Default for Exchange {
-    fn default() -> Self {
-        let assets: Vec<Asset> = vec![];
-        Self::new(assets)
-    }
-}
+//impl Default for Exchange {
+//    fn default() -> Self {
+//        let assets: Vec<Asset> = vec![];
+//        Self::new(assets)
+//    }
+//}
 
 fn is_marketable(o: &Order, price: f64) -> bool {
     match (&o.order_type, &o.side) {

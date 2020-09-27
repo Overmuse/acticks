@@ -1,8 +1,10 @@
+use actix_web::web::Data;
 use chrono::{Date, Utc};
+use log;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use tokio::stream::StreamExt;
-use tokio::time::{DelayQueue, Duration};
+use std::sync::Mutex;
+use tokio::time::{DelayQueue, Duration, Instant};
 
 #[cfg(kafka)]
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -24,23 +26,23 @@ fn default_conditions() -> Vec<u8> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Trade {
     #[serde(rename = "i")]
-    trade_id: String,
+    pub trade_id: String,
     #[serde(rename = "x")]
-    exchange_id: u8,
+    pub exchange_id: u8,
     #[serde(rename = "p")]
-    price: f64,
+    pub price: f64,
     #[serde(rename = "s")]
-    size: u32,
+    pub size: u32,
     #[serde(rename = "c", default = "default_conditions")]
-    conditions: Vec<u8>,
+    pub conditions: Vec<u8>,
     #[serde(rename = "t")]
-    timestamp: u64,
+    pub timestamp: u64,
     #[serde(rename = "z")]
-    tape: Tape,
+    pub tape: Tape,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TickerTrade(String, Trade);
+pub struct TickerTrade(pub String, pub Trade);
 
 pub trait Market {
     fn new(symbols: String, start_date: Date<Utc>, end_date: Date<Utc>) -> Self;
@@ -57,9 +59,9 @@ struct PolygonResponse {
 
 #[derive(Debug)]
 pub struct PolygonMarket {
-    symbols: Vec<String>,
+    pub symbols: Vec<String>,
     data: Vec<TickerTrade>,
-    queue: DelayQueue<TickerTrade>,
+    pub queue: DelayQueue<TickerTrade>,
 }
 
 impl PolygonMarket {
@@ -71,30 +73,40 @@ impl PolygonMarket {
         }
     }
 
-    pub async fn initialize(&mut self) {
-        for symbol in &self.symbols {
-            let mut data = self.download_data(&symbol).await.unwrap();
-            self.data.append(&mut data);
-        }
-        self.data
-            .sort_by(|t1, t2| (t2.1.timestamp.partial_cmp(&t1.1.timestamp)).unwrap());
-
-        self.schedule_trades(1).await;
+    pub fn create(symbols: Vec<String>) -> Data<Mutex<Self>> {
+        let me = Data::new(Mutex::new(Self::new(symbols.clone())));
+        PolygonMarket::initialize(me.clone(), symbols);
+        me
     }
 
-    pub async fn schedule_trades(&mut self, rate: u64) {
-        let mut prev_message: Option<TickerTrade> = None;
-        for message in &self.data {
-            println!("{:?}", &prev_message);
-            println!("{:?}", &message);
-            if let Some(prev) = prev_message {
-                let delay = message.1.timestamp - prev.1.timestamp;
-                self.queue
-                    .insert(message.clone(), Duration::from_nanos(delay));
-            } else {
-                self.queue.insert(message.clone(), Duration::from_nanos(0));
+    pub fn initialize(me: Data<Mutex<Self>>, symbols: Vec<String>) {
+        actix_web::rt::spawn(async move {
+            for symbol in symbols {
+                log::debug!("Downloading data for {}", &symbol);
+                let mut data = me.lock().unwrap().download_data(&symbol).await.unwrap();
+                me.lock().unwrap().data.append(&mut data);
             }
-            prev_message = Some(message.clone());
+            me.lock()
+                .unwrap()
+                .data
+                .sort_by(|t1, t2| t2.1.timestamp.partial_cmp(&t1.1.timestamp).unwrap());
+
+            log::debug!("Scheduling trades");
+            me.lock().unwrap().schedule_trades(1000);
+        });
+    }
+
+    pub fn schedule_trades(&mut self, rate: u64) {
+        let first_message: TickerTrade = self.data.pop().unwrap();
+        let actual_now = Instant::now();
+        let simulated_now = first_message.1.timestamp;
+        self.queue
+            .insert_at(first_message, actual_now + Duration::from_nanos(0));
+        while let Some(message) = self.data.pop() {
+            log::trace!("Scheduling message: {:?}", &message);
+            let event_time =
+                actual_now + Duration::from_nanos((message.1.timestamp - simulated_now) / rate);
+            self.queue.insert_at(message, event_time);
         }
     }
 
@@ -105,9 +117,10 @@ impl PolygonMarket {
             symbol,
             std::env::var("POLYGON_KEY").unwrap()
         );
-        println!("{:?}", url);
-        let req = client.get(&url).send().await.unwrap().text().await.unwrap();
-        let res: PolygonResponse = serde_json::from_str(&req).unwrap();
+        log::trace!("Making request: {}", &url);
+        let req = client.get(&url).send().await.unwrap();
+        let res = req.text().await.unwrap();
+        let res: PolygonResponse = serde_json::from_str(&res).unwrap();
         Ok(res
             .results
             .iter()
