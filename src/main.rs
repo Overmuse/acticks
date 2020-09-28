@@ -18,32 +18,31 @@ async fn get_clock(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 }
 
 async fn get_account(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    HttpResponse::Ok().json(brokerage.get_account()).await
+    HttpResponse::Ok().json(brokerage.get_account().await).await
 }
 
 async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    let assets: Vec<Asset> = brokerage.get_assets().values().cloned().collect();
+    let assets: Vec<Asset> = brokerage.get_assets().await.values().cloned().collect();
     HttpResponse::Ok().json(assets).await
 }
 
 async fn get_asset(brokerage: Data<Brokerage>, symbol_or_id: Path<String>) -> Result<HttpResponse> {
     let possible_id = Uuid::parse_str(&symbol_or_id);
-    println!("{:?}", &possible_id);
     let asset = match possible_id {
-        Ok(id) => brokerage.get_asset_by_id(&id)?,
-        Err(_) => brokerage.get_asset(&symbol_or_id)?,
+        Ok(id) => brokerage.get_asset_by_id(&id).await?,
+        Err(_) => brokerage.get_asset(&symbol_or_id).await?,
     };
     HttpResponse::Ok().json(asset).await
 }
 
 async fn get_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    let mut orders: Vec<Order> = brokerage.get_orders().values().cloned().collect();
+    let mut orders: Vec<Order> = brokerage.get_orders().await.values().cloned().collect();
     orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
     HttpResponse::Ok().json(orders).await
 }
 
 async fn get_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
-    let order: Order = brokerage.get_order(*id)?;
+    let order: Order = brokerage.get_order(*id).await?;
     HttpResponse::Ok().json(order).await
 }
 
@@ -58,7 +57,8 @@ async fn get_order_by_client_id(
     params: Query<OrderQuery>,
 ) -> Result<HttpResponse> {
     let order: Order = brokerage
-        .get_order_by_client_id(&params.client_order_id.as_ref().unwrap(), params.nested)?;
+        .get_order_by_client_id(&params.client_order_id.as_ref().unwrap(), params.nested)
+        .await?;
     HttpResponse::Ok().json(order).await
 }
 
@@ -68,22 +68,24 @@ async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result
 }
 
 async fn cancel_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    brokerage.modify_orders(|orders| {
-        for order in orders.values_mut() {
-            match order.status {
-                OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
-                _ => order
-                    .cancel()
-                    .expect("All other statuses should be cancelable"),
-            }
-        }
-    });
-    HttpResponse::Ok().await
+    todo!()
+    //brokerage.modify_orders(|orders| {
+    //    for order in orders.values_mut() {
+    //        match order.status {
+    //            OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
+    //            _ => order
+    //                .cancel()
+    //                .expect("All other statuses should be cancelable"),
+    //        }
+    //    }
+    //});
+    //HttpResponse::Ok().await
 }
 
 async fn cancel_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
-    brokerage.modify_order(*id, |o| o.cancel())?;
-    HttpResponse::Ok().await
+    todo!()
+    //brokerage.modify_order(*id, |o| o.cancel())?;
+    //HttpResponse::Ok().await
 }
 
 async fn get_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
@@ -118,7 +120,7 @@ async fn main() -> std::io::Result<()> {
         "SUNW".into(),
         "DRD".into(),
     ];
-    let brokerage = Brokerage::new(cash, symbols);
+    let brokerage = Brokerage::new(cash, symbols).await;
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())

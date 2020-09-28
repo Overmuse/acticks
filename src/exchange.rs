@@ -1,9 +1,11 @@
 use crate::asset::Asset;
 use crate::order::{Order, OrderType, Side};
+use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Message)]
+#[rtype(result = "()")]
 pub struct TradeFill {
     pub time: DateTime<Utc>,
     pub qty: i32,

@@ -1,11 +1,105 @@
+use actix::dev::{MessageResponse, ResponseChannel};
+use actix::prelude::*;
 use chrono::{DateTime, Utc};
+use log::debug;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::ops::Neg;
 use uuid::Uuid;
 
 use crate::asset::{Asset, AssetClass};
 use crate::errors::{Error, Result};
+use crate::exchange::TradeFill;
 use crate::utils::*;
+
+#[derive(Message)]
+#[rtype(result = "HashMap<Uuid, Order>")]
+pub struct GetOrders;
+
+#[derive(Default)]
+pub struct OrderManager {
+    pub orders: HashMap<Uuid, Order>,
+}
+
+impl Actor for OrderManager {
+    type Context = Context<Self>;
+}
+
+impl actix::Supervised for OrderManager {}
+
+impl SystemService for OrderManager {
+    fn service_started(&mut self, ctx: &mut Context<Self>) {
+        debug!("OrderManager service started");
+    }
+}
+
+impl Handler<GetOrders> for OrderManager {
+    type Result = MessageResult<GetOrders>;
+
+    fn handle(&mut self, _msg: GetOrders, _ctx: &mut Context<Self>) -> Self::Result {
+        MessageResult(self.orders.clone())
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Option<Order>")]
+pub struct GetOrderByClientOrderId {
+    pub client_order_id: String,
+}
+
+impl Handler<GetOrderByClientOrderId> for OrderManager {
+    type Result = Option<Order>;
+
+    fn handle(&mut self, msg: GetOrderByClientOrderId, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders
+            .values()
+            .find(|order| order.client_order_id == msg.client_order_id)
+            .cloned()
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Option<Order>")]
+pub struct GetOrderById {
+    pub id: Uuid,
+}
+
+impl Handler<GetOrderById> for OrderManager {
+    type Result = Option<Order>;
+
+    fn handle(&mut self, msg: GetOrderById, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.get(&msg.id).cloned()
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct PostOrder {
+    pub order: Order,
+}
+
+impl Handler<PostOrder> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: PostOrder, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.insert(msg.order.id, msg.order);
+    }
+}
+
+impl Handler<TradeFill> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.entry(msg.order.id).and_modify(|order| {
+            let time = Some(msg.time);
+            order.filled_qty = order.qty;
+            order.updated_at = time;
+            order.filled_at = time;
+            order.filled_avg_price = Some(msg.price);
+            order.status = OrderStatus::Filled;
+        });
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]

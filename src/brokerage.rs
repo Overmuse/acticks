@@ -1,10 +1,14 @@
-use crate::account::Account;
-use crate::asset::Asset;
+use crate::account::{Account, AccountManager, GetAccount, SetCash};
+use crate::asset::{Asset, AssetManager, GetAssetById, GetAssetBySymbol, GetAssets, SetAssets};
 use crate::clock::Clock;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
-use crate::order::{self, Order, OrderIntent, OrderStatus};
+use crate::order::{
+    self, GetOrderByClientOrderId, GetOrderById, GetOrders, Order, OrderIntent, OrderManager,
+    OrderStatus, PostOrder,
+};
 use crate::position::{self, Position};
+use actix::prelude::*;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -12,25 +16,29 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Brokerage {
-    account: Arc<RwLock<Account>>,
-    assets: Arc<RwLock<HashMap<String, Asset>>>,
-    orders: Arc<RwLock<HashMap<Uuid, Order>>>,
     positions: Arc<RwLock<HashMap<String, Position>>>,
     exchange: Arc<RwLock<Exchange>>,
 }
 
 impl Brokerage {
-    pub fn new(cash: f64, symbols: Vec<String>) -> Self {
-        let account = Arc::new(RwLock::new(Account::new(cash)));
-        let orders = Arc::new(RwLock::new(HashMap::new()));
+    pub async fn new(cash: f64, symbols: Vec<String>) -> Self {
+        AccountManager::from_registry()
+            .send(SetCash(cash))
+            .await
+            .unwrap();
+        AssetManager::from_registry()
+            .send(SetAssets { symbols })
+            .await
+            .unwrap();
+        let assets = AssetManager::from_registry()
+            .send(GetAssets {})
+            .await
+            .unwrap();
         let positions = Arc::new(RwLock::new(HashMap::new()));
-        let assets: Vec<Asset> = symbols.iter().map(|x| Asset::from_symbol(x)).collect();
-        let exchange = Arc::new(RwLock::new(Exchange::new(assets.clone())));
-        let mapping: HashMap<String, _> = symbols.iter().cloned().zip(assets).collect();
+        let exchange = Arc::new(RwLock::new(Exchange::new(
+            assets.values().cloned().collect(),
+        )));
         Brokerage {
-            account,
-            assets: Arc::new(RwLock::new(mapping)),
-            orders,
             positions,
             exchange,
         }
@@ -46,75 +54,74 @@ impl Brokerage {
         }
     }
 
-    pub fn get_account(&self) -> Account {
-        self.account.read().unwrap().clone()
-    }
-
-    pub fn modify_account<F, T>(&self, f: F) -> T
-    where
-        F: FnOnce(&mut Account) -> T,
-    {
-        f(&mut self.account.write().unwrap())
-    }
-
-    pub fn get_assets(&self) -> HashMap<String, Asset> {
-        self.assets.read().unwrap().clone()
-    }
-
-    pub fn get_asset(&self, symbol: &str) -> Result<Asset> {
-        self.assets
-            .read()
+    pub async fn get_account(&self) -> Account {
+        AccountManager::from_registry()
+            .send(GetAccount {})
+            .await
             .unwrap()
-            .get(symbol)
-            .cloned()
-            .ok_or(Error::NotFound)
+            .clone()
     }
 
-    pub fn get_asset_by_id(&self, id: &Uuid) -> Result<Asset> {
-        let assets = self.assets.read().unwrap();
-        assets
-            .values()
-            .find(|asset| &asset.id == id)
-            .cloned()
-            .ok_or(Error::NotFound)
-    }
-
-    pub fn get_orders(&self) -> HashMap<Uuid, Order> {
-        self.orders.read().unwrap().clone()
-    }
-
-    pub fn get_order(&self, id: Uuid) -> Result<Order> {
-        self.orders
-            .read()
+    pub async fn get_assets(&self) -> HashMap<String, Asset> {
+        AssetManager::from_registry()
+            .send(GetAssets {})
+            .await
             .unwrap()
-            .get(&id)
-            .cloned()
+            .clone()
+    }
+
+    pub async fn get_asset(&self, symbol: &str) -> Result<Asset> {
+        AssetManager::from_registry()
+            .send(GetAssetBySymbol {
+                symbol: symbol.to_string(),
+            })
+            .await
+            .unwrap()
+            .clone()
             .ok_or(Error::NotFound)
     }
 
-    pub fn get_order_by_client_id(&self, client_id: &str, _nested: bool) -> Result<Order> {
-        let orders = self.orders.read().unwrap();
-        orders
-            .values()
-            .find(|order| order.client_order_id == client_id)
-            .cloned()
+    pub async fn get_asset_by_id(&self, id: &Uuid) -> Result<Asset> {
+        AssetManager::from_registry()
+            .send(GetAssetById { id: *id })
+            .await
+            .unwrap()
+            .clone()
+            .ok_or(Error::NotFound)
+        //let assets = self.assets.read().unwrap();
+        //assets
+        //    .values()
+        //    .find(|asset| &asset.id == id)
+        //    .cloned()
+        //    .ok_or(Error::NotFound)
+    }
+
+    pub async fn get_orders(&self) -> HashMap<Uuid, Order> {
+        OrderManager::from_registry()
+            .send(GetOrders {})
+            .await
+            .unwrap()
+            .clone()
+    }
+
+    pub async fn get_order(&self, id: Uuid) -> Result<Order> {
+        OrderManager::from_registry()
+            .send(GetOrderById { id })
+            .await
+            .unwrap()
+            .clone()
             .ok_or(Error::NotFound)
     }
 
-    pub fn modify_orders<F>(&self, f: F)
-    where
-        F: FnOnce(&mut HashMap<Uuid, Order>),
-    {
-        f(&mut self.orders.write().unwrap())
-    }
-
-    pub fn modify_order<F, T>(&self, id: Uuid, f: F) -> Result<T>
-    where
-        F: FnOnce(&mut Order) -> Result<T>,
-    {
-        let mut orders = self.orders.write().unwrap();
-        let mut order = orders.get_mut(&id).ok_or(Error::NotFound)?;
-        f(&mut order)
+    pub async fn get_order_by_client_id(&self, client_id: &str, _nested: bool) -> Result<Order> {
+        OrderManager::from_registry()
+            .send(GetOrderByClientOrderId {
+                client_order_id: client_id.to_string(),
+            })
+            .await
+            .unwrap()
+            .clone()
+            .ok_or(Error::NotFound)
     }
 
     pub fn get_positions(&self) -> HashMap<String, Position> {
@@ -158,44 +165,37 @@ impl Brokerage {
         self.post_order(order_intent).await
     }
 
-    pub fn update_price(&self, symbol: String, price: f64) {
-        let potential_fills = self.exchange.write().unwrap().update_price(&symbol, price);
-        potential_fills
-            .iter()
-            .for_each(|fill| self.update_from_fill(fill));
-    }
+    //pub async fn update_price(&self, symbol: String, price: f64) {
+    //    let potential_fills = self.exchange.write().unwrap().update_price(&symbol, price);
+    //    potential_fills
+    //        .iter()
+    //        .for_each(|fill| self.update_from_fill(fill).await);
+    //}
 
     pub async fn post_order(&self, o: OrderIntent) -> Result<Order> {
-        let asset = self.get_asset(&o.symbol)?;
+        let asset = self.get_asset(&o.symbol).await?;
         let mut order: Order = Order::from_intent(&o, &asset);
         let o2 = order.clone();
         let s = self.clone();
         tokio::spawn(async move {
             order.submitted_at = Some(Utc::now());
             order.updated_at = Some(Utc::now());
-            s.modify_orders(|o| {
-                o.insert(order.id, order.clone());
-            });
+            OrderManager::from_registry()
+                .send(PostOrder {
+                    order: order.clone(),
+                })
+                .await;
             let potential_fill = s.exchange.write().unwrap().transmit_order(order);
             if let Some(fill) = potential_fill {
-                s.update_from_fill(&fill);
+                s.update_from_fill(&fill).await;
             }
         });
         Ok(o2)
     }
 
-    fn update_from_fill(&self, tf: &TradeFill) {
-        let asset = self.get_asset(&tf.order.symbol).unwrap();
-        self.modify_order(tf.order.id, |order| {
-            let time = Some(tf.time);
-            order.filled_qty = order.qty;
-            order.updated_at = time;
-            order.filled_at = time;
-            order.filled_avg_price = Some(tf.price);
-            order.status = OrderStatus::Filled;
-            Ok(())
-        })
-        .unwrap();
+    async fn update_from_fill(&self, tf: &TradeFill) {
+        let asset = self.get_asset(&tf.order.symbol).await.unwrap();
+        OrderManager::from_registry().send(tf.clone());
         let prev_position = self.get_position(&tf.order.symbol);
         self.modify_positions(|ps| {
             ps.entry(tf.order.symbol.clone())
@@ -235,35 +235,9 @@ impl Brokerage {
                 });
             ps.retain(|_, v| v.qty != 0);
         });
-        self.modify_account(|account| {
-            let cost_basis = tf.price * tf.qty as f64;
-            account.cash -= cost_basis;
-            match prev_position {
-                // The implementation here is incorrect, need to update based on market value, not cost
-                // basis
-                Ok(pos) => {
-                    if let position::Side::Long = pos.side {
-                        account.long_market_value += cost_basis
-                    } else {
-                        account.short_market_value += cost_basis
-                    }
-                }
-                Err(_) => {
-                    if tf.qty > 0 {
-                        account.long_market_value += cost_basis
-                    } else {
-                        account.short_market_value += cost_basis
-                    }
-                }
-            };
-            account.initial_margin += 0.5 * cost_basis;
-            account.daytrade_count += 1;
-            if account.daytrade_count >= 5 {
-                account.pattern_day_trader = true
-            }
-            account.daytrading_buying_power =
-                (account.equity - account.initial_margin).max(0.0) * account.multiplier;
-            account.regt_buying_power = account.buying_power / 2.;
-        })
+        AccountManager::from_registry()
+            .send(tf.clone())
+            .await
+            .unwrap();
     }
 }
