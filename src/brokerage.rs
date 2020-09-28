@@ -1,4 +1,4 @@
-use crate::account::{AccountManager, SetCash};
+use crate::account::actors::{AccountManager, SetCash};
 use crate::asset::{Asset, AssetManager, GetAssetById, GetAssetBySymbol, GetAssets, SetAssets};
 use crate::clock::Clock;
 use crate::errors::{Error, Result};

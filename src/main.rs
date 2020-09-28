@@ -6,7 +6,7 @@ use actix_web::{
 use env_logger::Env;
 use serde::Deserialize;
 use simulator::{
-    account,
+    account::get_account,
     asset::Asset,
     brokerage::Brokerage,
     order::{Order, OrderIntent},
@@ -19,7 +19,7 @@ async fn get_clock(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 }
 
 async fn get_account() -> Result<HttpResponse> {
-    HttpResponse::Ok().json(account::get_account().await).await
+    HttpResponse::Ok().json(get_account().await).await
 }
 
 async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
