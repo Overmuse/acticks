@@ -1,3 +1,4 @@
+use actix::registry::SystemService;
 use actix_web::middleware::Logger;
 use actix_web::{
     web::{self, Data, Json, Path, Query},
@@ -9,6 +10,7 @@ use serde::Deserialize;
 use simulator::{
     account, asset,
     brokerage::Brokerage,
+    exchange,
     order::{self, Order, OrderIntent},
     position,
 };
@@ -114,7 +116,7 @@ async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::from_env(Env::default().default_filter_or("debug")).init();
-    let cash = 1_000_000.0;
+    let cash: f64 = 1_000_000.0;
     let symbols = vec![
         "PROP".into(),
         "IDEX".into(),
@@ -122,11 +124,28 @@ async fn main() -> std::io::Result<()> {
         "SUNW".into(),
         "DRD".into(),
     ];
-    let brokerage = Brokerage::new(cash, symbols).await;
+    account::actors::AccountManager::from_registry()
+        .send(account::actors::SetCash(cash))
+        .await
+        .unwrap();
+    asset::actors::AssetManager::from_registry()
+        .send(asset::actors::SetAssets {
+            symbols: symbols.clone(),
+        })
+        .await
+        .unwrap();
+    let assets: Vec<asset::types::Asset> = symbols
+        .iter()
+        .map(|x| asset::types::Asset::from_symbol(x))
+        .collect();
+    exchange::Exchange::from_registry()
+        .send(exchange::SetAssets { assets })
+        .await
+        .unwrap();
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
-            .data(brokerage.clone())
+            .data(Brokerage {})
             .route("/account", web::get().to(get_account))
             .route("/clock", web::get().to(get_clock))
             .route("/assets", web::get().to(get_assets))

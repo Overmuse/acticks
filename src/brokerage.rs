@@ -6,7 +6,7 @@ use crate::asset::{
 };
 use crate::clock::Clock;
 use crate::errors::{Error, Result};
-use crate::exchange::{Exchange, TradeFill};
+use crate::exchange::{Exchange, TradeFill, TransmitOrder};
 use crate::order::{
     CancelOrder, CancelOrders, GetOrderByClientOrderId, GetOrderById, GetOrders, Order,
     OrderIntent, OrderManager, PostOrder,
@@ -19,34 +19,9 @@ use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 #[derive(Clone)]
-pub struct Brokerage {
-    exchange: Arc<RwLock<Exchange>>,
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct AssetTradeFill(pub Asset, pub TradeFill);
+pub struct Brokerage {}
 
 impl Brokerage {
-    pub async fn new(cash: f64, symbols: Vec<String>) -> Self {
-        AccountManager::from_registry()
-            .send(SetCash(cash))
-            .await
-            .unwrap();
-        AssetManager::from_registry()
-            .send(SetAssets { symbols })
-            .await
-            .unwrap();
-        let assets = AssetManager::from_registry()
-            .send(GetAssets {})
-            .await
-            .unwrap();
-        let exchange = Arc::new(RwLock::new(Exchange::new(
-            assets.values().cloned().collect(),
-        )));
-        Brokerage { exchange }
-    }
-
     pub fn get_clock(&self) -> Clock {
         // TODO: Make this dynamically pull from exchange
         Clock {
@@ -112,7 +87,10 @@ impl Brokerage {
                 })
                 .await
                 .unwrap();
-            let potential_fill = s.exchange.write().unwrap().transmit_order(order);
+            let potential_fill = Exchange::from_registry()
+                .send(TransmitOrder(order))
+                .await
+                .unwrap();
             if let Some(fill) = potential_fill {
                 s.update_from_fill(&fill).await.unwrap();
             }
@@ -133,7 +111,7 @@ impl Brokerage {
             .unwrap()
             .unwrap();
         PositionManager::from_registry()
-            .send(AssetTradeFill(asset, tf.clone()))
+            .send(tf.clone())
             .await
             .unwrap();
         AccountManager::from_registry()
