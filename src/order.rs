@@ -1,4 +1,3 @@
-use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use log::debug;
@@ -28,7 +27,7 @@ impl Actor for OrderManager {
 impl actix::Supervised for OrderManager {}
 
 impl SystemService for OrderManager {
-    fn service_started(&mut self, ctx: &mut Context<Self>) {
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {
         debug!("OrderManager service started");
     }
 }
@@ -98,6 +97,37 @@ impl Handler<TradeFill> for OrderManager {
             order.filled_avg_price = Some(msg.price);
             order.status = OrderStatus::Filled;
         });
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct CancelOrders;
+
+impl Handler<CancelOrders> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, _msg: CancelOrders, _ctx: &mut Context<Self>) -> Self::Result {
+        for order in self.orders.values_mut() {
+            match order.status {
+                OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
+                _ => order
+                    .cancel()
+                    .expect("All other statuses should be cancelable"),
+            }
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct CancelOrder(pub Uuid);
+
+impl Handler<CancelOrder> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: CancelOrder, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.get_mut(&msg.0).unwrap().cancel().unwrap();
     }
 }
 

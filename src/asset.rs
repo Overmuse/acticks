@@ -75,7 +75,7 @@ impl Actor for AssetManager {
 impl actix::Supervised for AssetManager {}
 
 impl SystemService for AssetManager {
-    fn service_started(&mut self, ctx: &mut Context<Self>) {
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {
         debug!("AssetManager service started");
     }
 }
@@ -87,7 +87,7 @@ pub struct GetAssets;
 impl Handler<GetAssets> for AssetManager {
     type Result = MessageResult<GetAssets>;
 
-    fn handle(&mut self, msg: GetAssets, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: GetAssets, _ctx: &mut Context<Self>) -> Self::Result {
         MessageResult(self.assets.clone())
     }
 }

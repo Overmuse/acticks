@@ -7,10 +7,6 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Message)]
-#[rtype(result = "Account")]
-pub struct GetAccount;
-
 pub struct AccountManager {
     pub account: Account,
 }
@@ -30,10 +26,14 @@ impl Actor for AccountManager {
 impl actix::Supervised for AccountManager {}
 
 impl SystemService for AccountManager {
-    fn service_started(&mut self, ctx: &mut Context<Self>) {
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {
         debug!("AccountManager service started");
     }
 }
+
+#[derive(Message)]
+#[rtype(result = "Account")]
+pub struct GetAccount;
 
 impl Handler<GetAccount> for AccountManager {
     type Result = Account;
@@ -41,6 +41,14 @@ impl Handler<GetAccount> for AccountManager {
     fn handle(&mut self, _msg: GetAccount, _ctx: &mut Context<Self>) -> Self::Result {
         self.account.clone()
     }
+}
+
+pub async fn get_account() -> Account {
+    AccountManager::from_registry()
+        .send(GetAccount {})
+        .await
+        .unwrap()
+        .clone()
 }
 
 impl<A, M> MessageResponse<A, M> for Account

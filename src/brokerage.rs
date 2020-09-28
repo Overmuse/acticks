@@ -1,11 +1,11 @@
-use crate::account::{Account, AccountManager, GetAccount, SetCash};
+use crate::account::{AccountManager, SetCash};
 use crate::asset::{Asset, AssetManager, GetAssetById, GetAssetBySymbol, GetAssets, SetAssets};
 use crate::clock::Clock;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill};
 use crate::order::{
-    self, GetOrderByClientOrderId, GetOrderById, GetOrders, Order, OrderIntent, OrderManager,
-    OrderStatus, PostOrder,
+    self, CancelOrder, CancelOrders, GetOrderByClientOrderId, GetOrderById, GetOrders, Order,
+    OrderIntent, OrderManager, PostOrder,
 };
 use crate::position::{self, Position};
 use actix::prelude::*;
@@ -52,14 +52,6 @@ impl Brokerage {
             next_open: Utc::now(),
             next_close: Utc::now(),
         }
-    }
-
-    pub async fn get_account(&self) -> Account {
-        AccountManager::from_registry()
-            .send(GetAccount {})
-            .await
-            .unwrap()
-            .clone()
     }
 
     pub async fn get_assets(&self) -> HashMap<String, Asset> {
@@ -124,6 +116,20 @@ impl Brokerage {
             .ok_or(Error::NotFound)
     }
 
+    pub async fn cancel_orders(&self) {
+        OrderManager::from_registry()
+            .send(CancelOrders {})
+            .await
+            .unwrap();
+    }
+
+    pub async fn cancel_order(&self, id: Uuid) {
+        OrderManager::from_registry()
+            .send(CancelOrder(id))
+            .await
+            .unwrap();
+    }
+
     pub fn get_positions(&self) -> HashMap<String, Position> {
         self.positions.read().unwrap().clone()
     }
@@ -184,19 +190,25 @@ impl Brokerage {
                 .send(PostOrder {
                     order: order.clone(),
                 })
-                .await;
+                .await
+                .unwrap();
             let potential_fill = s.exchange.write().unwrap().transmit_order(order);
             if let Some(fill) = potential_fill {
-                s.update_from_fill(&fill).await;
+                s.update_from_fill(&fill).await.unwrap();
             }
         });
         Ok(o2)
     }
 
-    async fn update_from_fill(&self, tf: &TradeFill) {
-        let asset = self.get_asset(&tf.order.symbol).await.unwrap();
-        OrderManager::from_registry().send(tf.clone());
-        let prev_position = self.get_position(&tf.order.symbol);
+    async fn update_from_fill(&self, tf: &TradeFill) -> Result<()> {
+        let asset = self
+            .get_asset(&tf.order.symbol)
+            .await
+            .map_err(|_| Error::Other)?;
+        OrderManager::from_registry()
+            .send(tf.clone())
+            .await
+            .map_err(|_| Error::Other)?;
         self.modify_positions(|ps| {
             ps.entry(tf.order.symbol.clone())
                 .and_modify(|p| {
@@ -239,5 +251,6 @@ impl Brokerage {
             .send(tf.clone())
             .await
             .unwrap();
+        Ok(())
     }
 }

@@ -6,9 +6,10 @@ use actix_web::{
 use env_logger::Env;
 use serde::Deserialize;
 use simulator::{
+    account,
     asset::Asset,
     brokerage::Brokerage,
-    order::{Order, OrderIntent, OrderStatus},
+    order::{Order, OrderIntent},
     position::Position,
 };
 use uuid::Uuid;
@@ -17,8 +18,8 @@ async fn get_clock(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     HttpResponse::Ok().json(brokerage.get_clock()).await
 }
 
-async fn get_account(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    HttpResponse::Ok().json(brokerage.get_account().await).await
+async fn get_account() -> Result<HttpResponse> {
+    HttpResponse::Ok().json(account::get_account().await).await
 }
 
 async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
@@ -68,24 +69,13 @@ async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result
 }
 
 async fn cancel_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    todo!()
-    //brokerage.modify_orders(|orders| {
-    //    for order in orders.values_mut() {
-    //        match order.status {
-    //            OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
-    //            _ => order
-    //                .cancel()
-    //                .expect("All other statuses should be cancelable"),
-    //        }
-    //    }
-    //});
-    //HttpResponse::Ok().await
+    brokerage.cancel_orders().await;
+    HttpResponse::Ok().await
 }
 
 async fn cancel_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
-    todo!()
-    //brokerage.modify_order(*id, |o| o.cancel())?;
-    //HttpResponse::Ok().await
+    brokerage.cancel_order(*id).await;
+    HttpResponse::Ok().await
 }
 
 async fn get_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
