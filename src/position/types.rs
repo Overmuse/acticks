@@ -1,8 +1,7 @@
+use crate::asset::types::{AssetClass, Exchange};
+use crate::utils::{from_str, to_string};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::asset::{AssetClass, Exchange};
-use crate::utils::{from_str, to_string};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "lowercase", deserialize = "lowercase"))]

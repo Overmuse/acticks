@@ -1,3 +1,7 @@
+use crate::asset::types::{Asset, AssetClass};
+use crate::errors::{Error, Result};
+use crate::exchange::TradeFill;
+use crate::utils::*;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use log::debug;
@@ -6,10 +10,13 @@ use std::collections::HashMap;
 use std::ops::Neg;
 use uuid::Uuid;
 
-use crate::asset::{Asset, AssetClass};
-use crate::errors::{Error, Result};
-use crate::exchange::TradeFill;
-use crate::utils::*;
+pub async fn get_orders() -> HashMap<Uuid, Order> {
+    OrderManager::from_registry()
+        .send(GetOrders {})
+        .await
+        .unwrap()
+        .clone()
+}
 
 #[derive(Message)]
 #[rtype(result = "HashMap<Uuid, Order>")]

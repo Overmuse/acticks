@@ -4,13 +4,13 @@ use actix_web::{
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger::Env;
+use log::debug;
 use serde::Deserialize;
 use simulator::{
-    account::get_account,
-    asset::Asset,
+    account, asset,
     brokerage::Brokerage,
-    order::{Order, OrderIntent},
-    position::Position,
+    order::{self, Order, OrderIntent},
+    position,
 };
 use uuid::Uuid;
 
@@ -19,25 +19,25 @@ async fn get_clock(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
 }
 
 async fn get_account() -> Result<HttpResponse> {
-    HttpResponse::Ok().json(get_account().await).await
+    HttpResponse::Ok().json(account::get_account().await).await
 }
 
-async fn get_assets(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    let assets: Vec<Asset> = brokerage.get_assets().await.values().cloned().collect();
+async fn get_assets() -> Result<HttpResponse> {
+    let assets: Vec<asset::types::Asset> = asset::get_assets().await.values().cloned().collect();
     HttpResponse::Ok().json(assets).await
 }
 
-async fn get_asset(brokerage: Data<Brokerage>, symbol_or_id: Path<String>) -> Result<HttpResponse> {
+async fn get_asset(symbol_or_id: Path<String>) -> Result<HttpResponse> {
     let possible_id = Uuid::parse_str(&symbol_or_id);
     let asset = match possible_id {
-        Ok(id) => brokerage.get_asset_by_id(&id).await?,
-        Err(_) => brokerage.get_asset(&symbol_or_id).await?,
+        Ok(id) => asset::get_asset_by_id(&id).await?,
+        Err(_) => asset::get_asset(&symbol_or_id).await?,
     };
     HttpResponse::Ok().json(asset).await
 }
 
-async fn get_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    let mut orders: Vec<Order> = brokerage.get_orders().await.values().cloned().collect();
+async fn get_orders() -> Result<HttpResponse> {
+    let mut orders: Vec<Order> = order::get_orders().await.values().cloned().collect();
     orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
     HttpResponse::Ok().json(orders).await
 }
@@ -78,25 +78,37 @@ async fn cancel_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Resul
     HttpResponse::Ok().await
 }
 
-async fn get_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    let positions: Vec<Position> = brokerage.get_positions().values().cloned().collect();
+async fn get_positions() -> Result<HttpResponse> {
+    let positions: Vec<position::types::Position> =
+        position::get_positions().await.values().cloned().collect();
     HttpResponse::Ok().json(positions).await
 }
 
-async fn get_position_by_symbol(
-    brokerage: Data<Brokerage>,
-    symbol: Path<String>,
-) -> Result<HttpResponse> {
-    let position = brokerage.get_position(&symbol)?;
+async fn get_position_by_symbol(symbol: Path<String>) -> Result<HttpResponse> {
+    let position = position::get_position(symbol.to_string()).await?;
     HttpResponse::Ok().json(position).await
 }
 
-async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    let positions = brokerage.get_positions();
-    for position in positions.values() {
-        brokerage.close_position(&position.symbol).await?;
-    }
+async fn close_position(brokerage: Data<Brokerage>, symbol: Path<String>) -> Result<HttpResponse> {
+    let position = position::get_position(symbol.to_string()).await?;
+    let order_side = match position.side {
+        position::types::Side::Long => order::Side::Sell,
+        position::types::Side::Short => order::Side::Buy,
+    };
+    let order_intent = OrderIntent::new(&symbol)
+        .qty(position.qty.abs() as u32)
+        .side(order_side);
+    brokerage.post_order(order_intent).await?;
     HttpResponse::Ok().await
+}
+
+async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+    todo!()
+    //let positions = brokerage.get_positions();
+    //for position in positions.values() {
+    //    brokerage.close_position(&position.symbol).await?;
+    //}
+    //HttpResponse::Ok().await
 }
 
 #[actix_web::main]
@@ -130,6 +142,7 @@ async fn main() -> std::io::Result<()> {
             .route("/orders/{id}", web::delete().to(cancel_order_by_id))
             .route("/positions", web::get().to(get_positions))
             .route("/positions/{symbol}", web::get().to(get_position_by_symbol))
+            .route("/positions/{symbol}", web::delete().to(close_position))
             .route("/positions", web::delete().to(close_positions))
     })
     .bind("127.0.0.1:8000")?

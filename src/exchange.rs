@@ -1,4 +1,4 @@
-use crate::asset::Asset;
+use crate::asset::types::Asset;
 use crate::order::{Order, OrderType, Side};
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
