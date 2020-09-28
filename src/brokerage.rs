@@ -1,21 +1,15 @@
-use crate::account::actors::{AccountManager, SetCash};
-use crate::asset::{
-    self,
-    actors::{AssetManager, GetAssetBySymbol, GetAssets, SetAssets},
-    types::Asset,
-};
+use crate::account::actors::AccountManager;
+use crate::asset::{self};
 use crate::clock::Clock;
 use crate::errors::{Error, Result};
 use crate::exchange::{Exchange, TradeFill, TransmitOrder};
 use crate::order::{
-    CancelOrder, CancelOrders, GetOrderByClientOrderId, GetOrderById, GetOrders, Order,
-    OrderIntent, OrderManager, PostOrder,
+    CancelOrder, CancelOrders, GetOrderByClientOrderId, GetOrderById, Order, OrderIntent,
+    OrderManager, PostOrder,
 };
-use crate::position::{self, actors::PositionManager, types::Position};
+use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::Utc;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -103,13 +97,6 @@ impl Brokerage {
             .send(tf.clone())
             .await
             .map_err(|_| Error::Other)?;
-        let asset = AssetManager::from_registry()
-            .send(GetAssetBySymbol {
-                symbol: tf.order.symbol.clone(),
-            })
-            .await
-            .unwrap()
-            .unwrap();
         PositionManager::from_registry()
             .send(tf.clone())
             .await

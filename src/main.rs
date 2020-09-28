@@ -5,7 +5,6 @@ use actix_web::{
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger::Env;
-use log::debug;
 use serde::Deserialize;
 use simulator::{
     account, asset,
@@ -104,7 +103,7 @@ async fn close_position(brokerage: Data<Brokerage>, symbol: Path<String>) -> Res
     HttpResponse::Ok().await
 }
 
-async fn close_positions(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
+async fn close_positions(_brokerage: Data<Brokerage>) -> Result<HttpResponse> {
     todo!()
     //let positions = brokerage.get_positions();
     //for position in positions.values() {
