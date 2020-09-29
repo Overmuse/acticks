@@ -1,22 +1,20 @@
 use actix::registry::SystemService;
 use actix_web::middleware::Logger;
 use actix_web::{
-    web::{self, Data, Json, Path, Query},
+    web::{self, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger::Env;
 use serde::Deserialize;
 use simulator::{
-    account, asset,
-    brokerage::Brokerage,
-    exchange,
+    account, asset, clock, exchange,
     order::{self, Order, OrderIntent},
     position,
 };
 use uuid::Uuid;
 
-async fn get_clock(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    HttpResponse::Ok().json(brokerage.get_clock()).await
+async fn get_clock() -> Result<HttpResponse> {
+    HttpResponse::Ok().json(clock::get_clock()).await
 }
 
 async fn get_account() -> Result<HttpResponse> {
@@ -43,8 +41,8 @@ async fn get_orders() -> Result<HttpResponse> {
     HttpResponse::Ok().json(orders).await
 }
 
-async fn get_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
-    let order: Order = brokerage.get_order(*id).await?;
+async fn get_order_by_id(id: Path<Uuid>) -> Result<HttpResponse> {
+    let order: Order = order::get_order(*id).await?;
     HttpResponse::Ok().json(order).await
 }
 
@@ -54,28 +52,25 @@ struct OrderQuery {
     nested: bool,
 }
 
-async fn get_order_by_client_id(
-    brokerage: Data<Brokerage>,
-    params: Query<OrderQuery>,
-) -> Result<HttpResponse> {
-    let order: Order = brokerage
-        .get_order_by_client_id(&params.client_order_id.as_ref().unwrap(), params.nested)
-        .await?;
+async fn get_order_by_client_id(params: Query<OrderQuery>) -> Result<HttpResponse> {
+    let order: Order =
+        order::get_order_by_client_id(&params.client_order_id.as_ref().unwrap(), params.nested)
+            .await?;
     HttpResponse::Ok().json(order).await
 }
 
-async fn post_order(brokerage: Data<Brokerage>, oi: Json<OrderIntent>) -> Result<HttpResponse> {
-    let order = brokerage.post_order(oi.into_inner()).await?;
+async fn post_order(oi: Json<OrderIntent>) -> Result<HttpResponse> {
+    let order = order::post_order(oi.into_inner()).await?;
     HttpResponse::Ok().json(order).await
 }
 
-async fn cancel_orders(brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    brokerage.cancel_orders().await;
+async fn cancel_orders() -> Result<HttpResponse> {
+    order::cancel_orders().await;
     HttpResponse::Ok().await
 }
 
-async fn cancel_order_by_id(brokerage: Data<Brokerage>, id: Path<Uuid>) -> Result<HttpResponse> {
-    brokerage.cancel_order(*id).await;
+async fn cancel_order_by_id(id: Path<Uuid>) -> Result<HttpResponse> {
+    order::cancel_order(*id).await;
     HttpResponse::Ok().await
 }
 
@@ -90,7 +85,7 @@ async fn get_position_by_symbol(symbol: Path<String>) -> Result<HttpResponse> {
     HttpResponse::Ok().json(position).await
 }
 
-async fn close_position(brokerage: Data<Brokerage>, symbol: Path<String>) -> Result<HttpResponse> {
+async fn close_position(symbol: Path<String>) -> Result<HttpResponse> {
     let position = position::get_position(symbol.to_string()).await?;
     let order_side = match position.side {
         position::types::Side::Long => order::Side::Sell,
@@ -99,17 +94,23 @@ async fn close_position(brokerage: Data<Brokerage>, symbol: Path<String>) -> Res
     let order_intent = OrderIntent::new(&symbol)
         .qty(position.qty.abs() as u32)
         .side(order_side);
-    brokerage.post_order(order_intent).await?;
+    order::post_order(order_intent).await?;
     HttpResponse::Ok().await
 }
 
-async fn close_positions(_brokerage: Data<Brokerage>) -> Result<HttpResponse> {
-    todo!()
-    //let positions = brokerage.get_positions();
-    //for position in positions.values() {
-    //    brokerage.close_position(&position.symbol).await?;
-    //}
-    //HttpResponse::Ok().await
+async fn close_positions() -> Result<HttpResponse> {
+    let positions = position::get_positions().await;
+    for position in positions.values() {
+        let order_side = match position.side {
+            position::types::Side::Long => order::Side::Sell,
+            position::types::Side::Short => order::Side::Buy,
+        };
+        let order_intent = OrderIntent::new(&position.symbol)
+            .qty(position.qty.abs() as u32)
+            .side(order_side);
+        order::post_order(order_intent).await?;
+    }
+    HttpResponse::Ok().await
 }
 
 #[actix_web::main]
@@ -144,7 +145,6 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
-            .data(Brokerage {})
             .route("/account", web::get().to(get_account))
             .route("/clock", web::get().to(get_clock))
             .route("/assets", web::get().to(get_assets))

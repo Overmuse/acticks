@@ -1,5 +1,8 @@
+use crate::account::actors::AccountManager;
 use crate::asset::types::Asset;
-use crate::order::{Order, OrderType, Side};
+use crate::errors::{Error, Result};
+use crate::order::{Order, OrderManager, OrderType, Side};
+use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use log::debug;
@@ -168,6 +171,21 @@ impl Default for Exchange {
     }
 }
 
+pub async fn update_from_fill(tf: &TradeFill) -> Result<()> {
+    OrderManager::from_registry()
+        .send(tf.clone())
+        .await
+        .map_err(|_| Error::Other)?;
+    PositionManager::from_registry()
+        .send(tf.clone())
+        .await
+        .unwrap();
+    AccountManager::from_registry()
+        .send(tf.clone())
+        .await
+        .unwrap();
+    Ok(())
+}
 fn is_marketable(o: &Order, price: f64) -> bool {
     match (&o.order_type, &o.side) {
         (OrderType::Market, _) => true,
