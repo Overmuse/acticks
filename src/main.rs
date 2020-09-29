@@ -177,18 +177,10 @@ mod test {
         web, App,
     };
 
-    fn new_brokerage() -> Brokerage {
-        Brokerage::new(100.0, vec!["PRPO".into(), "WORK".into()])
-    }
-
     #[actix_rt::test]
     async fn test_get_orders() {
-        let mut app = test::init_service(
-            App::new()
-                .data(new_brokerage())
-                .route("/orders", web::get().to(get_orders)),
-        )
-        .await;
+        let mut app =
+            test::init_service(App::new().route("/orders", web::get().to(get_orders))).await;
         let req = TestRequest::get().uri("/orders").to_request();
         let resp = test::call_service(&mut app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
