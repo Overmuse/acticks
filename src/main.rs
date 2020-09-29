@@ -6,11 +6,7 @@ use actix_web::{
 };
 use env_logger;
 use serde::Deserialize;
-use simulator::{
-    account, asset, clock, exchange,
-    order::{self, Order, OrderIntent},
-    position,
-};
+use simulator::{account, asset, clock, exchange, order, position};
 use uuid::Uuid;
 
 async fn get_clock() -> Result<HttpResponse> {
@@ -36,13 +32,14 @@ async fn get_asset(symbol_or_id: Path<String>) -> Result<HttpResponse> {
 }
 
 async fn get_orders() -> Result<HttpResponse> {
-    let mut orders: Vec<Order> = order::get_orders().await.values().cloned().collect();
+    let mut orders: Vec<order::types::Order> =
+        order::get_orders().await.values().cloned().collect();
     orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
     HttpResponse::Ok().json(orders).await
 }
 
 async fn get_order_by_id(id: Path<Uuid>) -> Result<HttpResponse> {
-    let order: Order = order::get_order(*id).await?;
+    let order: order::types::Order = order::get_order(*id).await?;
     HttpResponse::Ok().json(order).await
 }
 
@@ -53,13 +50,13 @@ struct OrderQuery {
 }
 
 async fn get_order_by_client_id(params: Query<OrderQuery>) -> Result<HttpResponse> {
-    let order: Order =
+    let order: order::types::Order =
         order::get_order_by_client_id(&params.client_order_id.as_ref().unwrap(), params.nested)
             .await?;
     HttpResponse::Ok().json(order).await
 }
 
-async fn post_order(oi: Json<OrderIntent>) -> Result<HttpResponse> {
+async fn post_order(oi: Json<order::types::OrderIntent>) -> Result<HttpResponse> {
     let order = order::post_order(oi.into_inner()).await?;
     HttpResponse::Ok().json(order).await
 }
@@ -88,10 +85,10 @@ async fn get_position_by_symbol(symbol: Path<String>) -> Result<HttpResponse> {
 async fn close_position(symbol: Path<String>) -> Result<HttpResponse> {
     let position = position::get_position(symbol.to_string()).await?;
     let order_side = match position.side {
-        position::types::Side::Long => order::Side::Sell,
-        position::types::Side::Short => order::Side::Buy,
+        position::types::Side::Long => order::types::Side::Sell,
+        position::types::Side::Short => order::types::Side::Buy,
     };
-    let order_intent = OrderIntent::new(&symbol)
+    let order_intent = order::types::OrderIntent::new(&symbol)
         .qty(position.qty.abs() as u32)
         .side(order_side);
     order::post_order(order_intent).await?;
@@ -102,10 +99,10 @@ async fn close_positions() -> Result<HttpResponse> {
     let positions = position::get_positions().await;
     for position in positions.values() {
         let order_side = match position.side {
-            position::types::Side::Long => order::Side::Sell,
-            position::types::Side::Short => order::Side::Buy,
+            position::types::Side::Long => order::types::Side::Sell,
+            position::types::Side::Short => order::types::Side::Buy,
         };
-        let order_intent = OrderIntent::new(&position.symbol)
+        let order_intent = order::types::OrderIntent::new(&position.symbol)
             .qty(position.qty.abs() as u32)
             .side(order_side);
         order::post_order(order_intent).await?;
