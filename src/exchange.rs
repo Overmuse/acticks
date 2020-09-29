@@ -1,7 +1,7 @@
 use crate::account::actors::AccountManager;
 use crate::asset::types::Asset;
 use crate::errors::{Error, Result};
-use crate::order::{Order, OrderManager, OrderType, Side};
+use crate::order::{actors::OrderManager, types::{Order, OrderType, Side}};
 use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
