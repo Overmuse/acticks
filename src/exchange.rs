@@ -1,9 +1,15 @@
-use crate::asset::Asset;
-use crate::order::{Order, OrderType, Side};
+use crate::account::actors::AccountManager;
+use crate::asset::types::Asset;
+use crate::errors::{Error, Result};
+use crate::order::{Order, OrderManager, OrderType, Side};
+use crate::position::actors::PositionManager;
+use actix::prelude::*;
 use chrono::{DateTime, Utc};
+use log::debug;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Message)]
+#[rtype(result = "()")]
 pub struct TradeFill {
     pub time: DateTime<Utc>,
     pub qty: i32,
@@ -24,6 +30,49 @@ pub struct Exchange {
     pub market_status: MarketStatus,
     pub assets: Vec<Asset>,
     pub prices: HashMap<String, f64>,
+}
+
+impl Actor for Exchange {
+    type Context = Context<Self>;
+}
+
+impl actix::Supervised for Exchange {}
+
+impl SystemService for Exchange {
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {
+        debug!("Exchange service started");
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Option<TradeFill>")]
+pub struct TransmitOrder(pub Order);
+
+impl Handler<TransmitOrder> for Exchange {
+    type Result = Option<TradeFill>;
+
+    fn handle(&mut self, msg: TransmitOrder, _ctx: &mut Context<Self>) -> Self::Result {
+        self.transmit_order(msg.0)
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SetAssets {
+    pub assets: Vec<Asset>,
+}
+
+impl Handler<SetAssets> for Exchange {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetAssets, _ctx: &mut Context<Self>) -> Self::Result {
+        let mut prices = HashMap::new();
+        msg.assets.iter().for_each(|a| {
+            prices.insert(a.symbol.clone(), 100.0);
+        });
+        self.assets = msg.assets;
+        self.prices = prices;
+    }
 }
 
 impl Exchange {
@@ -122,6 +171,21 @@ impl Default for Exchange {
     }
 }
 
+pub async fn update_from_fill(tf: &TradeFill) -> Result<()> {
+    OrderManager::from_registry()
+        .send(tf.clone())
+        .await
+        .map_err(|_| Error::Other)?;
+    PositionManager::from_registry()
+        .send(tf.clone())
+        .await
+        .unwrap();
+    AccountManager::from_registry()
+        .send(tf.clone())
+        .await
+        .unwrap();
+    Ok(())
+}
 fn is_marketable(o: &Order, price: f64) -> bool {
     match (&o.order_type, &o.side) {
         (OrderType::Market, _) => true,

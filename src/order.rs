@@ -1,11 +1,200 @@
+use crate::asset::{
+    self,
+    types::{Asset, AssetClass},
+};
+use crate::errors::{Error, Result};
+use crate::exchange::{self, Exchange, TradeFill, TransmitOrder};
+use crate::utils::*;
+use actix::prelude::*;
 use chrono::{DateTime, Utc};
+use log::debug;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::ops::Neg;
 use uuid::Uuid;
 
-use crate::asset::{Asset, AssetClass};
-use crate::errors::{Error, Result};
-use crate::utils::*;
+pub async fn get_orders() -> HashMap<Uuid, Order> {
+    OrderManager::from_registry()
+        .send(GetOrders {})
+        .await
+        .unwrap()
+}
+
+pub async fn get_order(id: Uuid) -> Result<Order> {
+    OrderManager::from_registry()
+        .send(GetOrderById { id })
+        .await
+        .unwrap()
+        .ok_or(Error::NotFound)
+}
+
+pub async fn get_order_by_client_id(client_id: &str, _nested: bool) -> Result<Order> {
+    OrderManager::from_registry()
+        .send(GetOrderByClientOrderId {
+            client_order_id: client_id.to_string(),
+        })
+        .await
+        .unwrap()
+        .ok_or(Error::NotFound)
+}
+
+pub async fn cancel_orders() {
+    OrderManager::from_registry()
+        .send(CancelOrders {})
+        .await
+        .unwrap();
+}
+
+pub async fn cancel_order(id: Uuid) {
+    OrderManager::from_registry()
+        .send(CancelOrder(id))
+        .await
+        .unwrap();
+}
+
+pub async fn post_order(o: OrderIntent) -> Result<Order> {
+    let asset = asset::get_asset(&o.symbol).await?;
+    let mut order: Order = Order::from_intent(&o, &asset);
+    let o2 = order.clone();
+    tokio::spawn(async move {
+        order.submitted_at = Some(Utc::now());
+        order.updated_at = Some(Utc::now());
+        OrderManager::from_registry()
+            .send(PostOrder {
+                order: order.clone(),
+            })
+            .await
+            .unwrap();
+        let potential_fill = Exchange::from_registry()
+            .send(TransmitOrder(order))
+            .await
+            .unwrap();
+        if let Some(fill) = potential_fill {
+            exchange::update_from_fill(&fill).await.unwrap();
+        }
+    });
+    Ok(o2)
+}
+
+#[derive(Message)]
+#[rtype(result = "HashMap<Uuid, Order>")]
+pub struct GetOrders;
+
+#[derive(Default)]
+pub struct OrderManager {
+    pub orders: HashMap<Uuid, Order>,
+}
+
+impl Actor for OrderManager {
+    type Context = Context<Self>;
+}
+
+impl actix::Supervised for OrderManager {}
+
+impl SystemService for OrderManager {
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {
+        debug!("OrderManager service started");
+    }
+}
+
+impl Handler<GetOrders> for OrderManager {
+    type Result = MessageResult<GetOrders>;
+
+    fn handle(&mut self, _msg: GetOrders, _ctx: &mut Context<Self>) -> Self::Result {
+        MessageResult(self.orders.clone())
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Option<Order>")]
+pub struct GetOrderByClientOrderId {
+    pub client_order_id: String,
+}
+
+impl Handler<GetOrderByClientOrderId> for OrderManager {
+    type Result = Option<Order>;
+
+    fn handle(&mut self, msg: GetOrderByClientOrderId, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders
+            .values()
+            .find(|order| order.client_order_id == msg.client_order_id)
+            .cloned()
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Option<Order>")]
+pub struct GetOrderById {
+    pub id: Uuid,
+}
+
+impl Handler<GetOrderById> for OrderManager {
+    type Result = Option<Order>;
+
+    fn handle(&mut self, msg: GetOrderById, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.get(&msg.id).cloned()
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct PostOrder {
+    pub order: Order,
+}
+
+impl Handler<PostOrder> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: PostOrder, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.insert(msg.order.id, msg.order);
+    }
+}
+
+impl Handler<TradeFill> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.entry(msg.order.id).and_modify(|order| {
+            let time = Some(msg.time);
+            order.filled_qty = order.qty;
+            order.updated_at = time;
+            order.filled_at = time;
+            order.filled_avg_price = Some(msg.price);
+            order.status = OrderStatus::Filled;
+        });
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct CancelOrders;
+
+impl Handler<CancelOrders> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, _msg: CancelOrders, _ctx: &mut Context<Self>) -> Self::Result {
+        for order in self.orders.values_mut() {
+            match order.status {
+                OrderStatus::Filled | OrderStatus::Expired | OrderStatus::Canceled => (),
+                _ => order
+                    .cancel()
+                    .expect("All other statuses should be cancelable"),
+            }
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct CancelOrder(pub Uuid);
+
+impl Handler<CancelOrder> for OrderManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: CancelOrder, _ctx: &mut Context<Self>) -> Self::Result {
+        self.orders.get_mut(&msg.0).unwrap().cancel().unwrap();
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]

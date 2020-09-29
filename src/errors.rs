@@ -7,6 +7,8 @@ pub enum Error {
     NotFound,
     #[display(fmt = "target order is no longer cancelable")]
     Uncancelable,
+    #[display(fmt = "internal error")]
+    Other,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -22,6 +24,7 @@ impl error::ResponseError for Error {
         match *self {
             Error::NotFound => StatusCode::NOT_FOUND,
             Error::Uncancelable => StatusCode::UNPROCESSABLE_ENTITY,
+            Error::Other => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
