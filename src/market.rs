@@ -1,3 +1,4 @@
+use actix::prelude::*;
 use chrono::{Date, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
@@ -16,7 +17,8 @@ fn default_conditions() -> Vec<u8> {
     Vec::new()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Message)]
+#[rtype(result = "()")]
 pub struct Trade {
     #[serde(rename = "sym")]
     symbol: String,
