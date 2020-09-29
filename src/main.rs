@@ -4,14 +4,13 @@ use actix_web::{
     web::{self, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };
+use env_logger;
 use serde::Deserialize;
 use simulator::{
     account, asset, clock, exchange,
     order::{self, Order, OrderIntent},
     position,
-    telemetry::{get_subscriber, init_subscriber},
 };
-use tracing_futures::Instrument;
 use uuid::Uuid;
 
 async fn get_clock() -> Result<HttpResponse> {
@@ -61,16 +60,7 @@ async fn get_order_by_client_id(params: Query<OrderQuery>) -> Result<HttpRespons
 }
 
 async fn post_order(oi: Json<OrderIntent>) -> Result<HttpResponse> {
-    let request_id = Uuid::new_v4();
-    let request_span = tracing::info_span!(
-        "Posting order",
-        %request_id
-    );
-    let _request_span_guard = request_span.enter();
-    let query_span = tracing::info_span!("Submitting");
-    let order = order::post_order(oi.into_inner())
-        .instrument(query_span)
-        .await?;
+    let order = order::post_order(oi.into_inner()).await?;
     HttpResponse::Ok().json(order).await
 }
 
@@ -125,8 +115,7 @@ async fn close_positions() -> Result<HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let subscriber = get_subscriber("simulator".into(), "info".into());
-    init_subscriber(subscriber);
+    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cash: f64 = 1_000_000.0;
     let symbols = vec![
         "PROP".into(),

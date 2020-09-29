@@ -7,10 +7,10 @@ use crate::exchange::{self, Exchange, TradeFill, TransmitOrder};
 use crate::utils::*;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::Neg;
-use tracing::debug;
 use uuid::Uuid;
 
 pub async fn get_orders() -> HashMap<Uuid, Order> {

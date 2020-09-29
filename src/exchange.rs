@@ -5,8 +5,8 @@ use crate::order::{Order, OrderManager, OrderType, Side};
 use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
+use log::debug;
 use std::collections::HashMap;
-use tracing::debug;
 
 #[derive(Clone, Debug, Message)]
 #[rtype(result = "()")]

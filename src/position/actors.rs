@@ -2,8 +2,8 @@ use super::types::{Position, Side};
 use crate::asset::actors::{AssetManager, GetAssetBySymbol};
 use crate::exchange::TradeFill;
 use actix::prelude::*;
+use log::debug;
 use std::collections::HashMap;
-use tracing::debug;
 
 #[derive(Default)]
 pub struct PositionManager {
