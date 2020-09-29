@@ -22,3 +22,6 @@ env_logger = "0.7.1"
 
 [dev-dependencies]
 actix-rt = "1"
+
+[features]
+polygon = []

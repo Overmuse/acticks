@@ -1,9 +1,10 @@
 use actix::prelude::*;
-use chrono::{Date, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use tokio::stream::StreamExt;
-use tokio::time::{DelayQueue, Duration};
+
+#[cfg(polygon)]
+pub mod Polygon;
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
 #[repr(u8)]
@@ -17,11 +18,8 @@ fn default_conditions() -> Vec<u8> {
     Vec::new()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Message)]
-#[rtype(result = "()")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Trade {
-    #[serde(rename = "sym")]
-    symbol: String,
     #[serde(rename = "i")]
     trade_id: String,
     #[serde(rename = "x")]
@@ -38,40 +36,17 @@ pub struct Trade {
     tape: Tape,
 }
 
-struct MarketData {
-    trades: Vec<Trade>,
-    queue: DelayQueue<Trade>,
-}
+#[derive(Serialize, Deserialize, Debug, Clone, Message)]
+#[rtype(result = "()")]
+pub struct TickerTrade(pub String, pub Trade);
 
-fn get_trades(symbols: Vec<&str>, start_date: Date<Utc>, end_date: Date<Utc>) -> Vec<Trade> {
-    todo!()
-}
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Subscribe(pub Recipient<TickerTrade>);
 
-impl MarketData {
-    fn new(mut trades: Vec<Trade>) -> Self {
-        trades.sort_by(|t1, t2| t2.timestamp.partial_cmp(&t1.timestamp).unwrap());
-        Self {
-            trades,
-            queue: DelayQueue::new(),
-        }
-    }
-
-    fn initialize_trades(symbols: Vec<&str>, start_date: Date<Utc>, end_date: Date<Utc>) -> Self {
-        let trades = get_trades(symbols, start_date, end_date);
-        Self::new(trades)
-    }
-
-    fn schedule_trades(&mut self, rate: u64) {
-        let mut prev_message = self.trades.pop().unwrap();
-        self.queue
-            .insert(prev_message.clone(), Duration::from_secs(0));
-        for message in &self.trades {
-            let delay = message.timestamp - prev_message.timestamp;
-            self.queue
-                .insert(message.clone(), Duration::from_millis(delay));
-            prev_message = message.clone();
-        }
-    }
+pub trait Market: Actor + Handler<Subscribe> {
+    fn new(symbols: Vec<String>, start: DateTime<Utc>, end: DateTime<Utc>) -> Self;
+    fn start(&self, rate: u64);
 }
 
 #[cfg(test)]
