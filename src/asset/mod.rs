@@ -15,7 +15,6 @@ pub async fn get_assets() -> HashMap<String, Asset> {
         .send(GetAssets {})
         .await
         .unwrap()
-        .clone()
 }
 
 pub async fn get_asset(symbol: &str) -> Result<Asset> {
@@ -25,7 +24,6 @@ pub async fn get_asset(symbol: &str) -> Result<Asset> {
         })
         .await
         .unwrap()
-        .clone()
         .ok_or(Error::NotFound)
 }
 
@@ -34,6 +32,5 @@ pub async fn get_asset_by_id(id: &Uuid) -> Result<Asset> {
         .send(GetAssetById { id: *id })
         .await
         .unwrap()
-        .clone()
         .ok_or(Error::NotFound)
 }

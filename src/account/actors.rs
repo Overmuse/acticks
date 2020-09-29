@@ -2,7 +2,7 @@ use crate::account::types::Account;
 use crate::exchange::TradeFill;
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
-use log::debug;
+use tracing::debug;
 
 pub struct AccountManager {
     pub account: Account,
@@ -56,7 +56,6 @@ impl Handler<TradeFill> for AccountManager {
     type Result = ();
 
     fn handle(&mut self, tf: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("TRADEFILL!");
         let cost_basis = tf.price * tf.qty as f64;
         self.account.cash -= cost_basis;
         if tf.qty > 0 {

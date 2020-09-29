@@ -7,10 +7,10 @@ use crate::exchange::{self, Exchange, TradeFill, TransmitOrder};
 use crate::utils::*;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
-use log::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::Neg;
+use tracing::debug;
 use uuid::Uuid;
 
 pub async fn get_orders() -> HashMap<Uuid, Order> {
@@ -18,7 +18,6 @@ pub async fn get_orders() -> HashMap<Uuid, Order> {
         .send(GetOrders {})
         .await
         .unwrap()
-        .clone()
 }
 
 pub async fn get_order(id: Uuid) -> Result<Order> {
@@ -26,7 +25,6 @@ pub async fn get_order(id: Uuid) -> Result<Order> {
         .send(GetOrderById { id })
         .await
         .unwrap()
-        .clone()
         .ok_or(Error::NotFound)
 }
 
@@ -37,7 +35,6 @@ pub async fn get_order_by_client_id(client_id: &str, _nested: bool) -> Result<Or
         })
         .await
         .unwrap()
-        .clone()
         .ok_or(Error::NotFound)
 }
 

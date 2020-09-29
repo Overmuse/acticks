@@ -1,5 +1,8 @@
+use crate::account::{
+    actors::{AccountManager, GetAccount},
+    types::Account,
+};
 use actix::registry::SystemService;
-use crate::account::{actors::{AccountManager, GetAccount}, types::Account};
 
 pub mod actors;
 pub mod types;
@@ -9,5 +12,4 @@ pub async fn get_account() -> Account {
         .send(GetAccount {})
         .await
         .unwrap()
-        .clone()
 }
