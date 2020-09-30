@@ -1,7 +1,11 @@
 use crate::account::actors::AccountManager;
 use crate::asset::types::Asset;
 use crate::errors::{Error, Result};
-use crate::order::{actors::OrderManager, types::{Order, OrderType, Side}};
+use crate::market::TickerTrade;
+use crate::order::{
+    actors::OrderManager,
+    types::{Order, OrderType, Side},
+};
 use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -72,6 +76,15 @@ impl Handler<SetAssets> for Exchange {
         });
         self.assets = msg.assets;
         self.prices = prices;
+    }
+}
+
+impl Handler<TickerTrade> for Exchange {
+    type Result = ();
+
+    fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
+        let TickerTrade(ticker, trade) = msg;
+        self.prices.entry(ticker).and_modify(|x| *x = trade.price);
     }
 }
 

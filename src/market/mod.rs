@@ -1,9 +1,8 @@
 use actix::prelude::*;
-use chrono::{Date, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use tokio::stream::StreamExt;
-use tokio::time::{DelayQueue, Duration};
+
+pub mod polygon;
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
 #[repr(u8)]
@@ -17,62 +16,41 @@ fn default_conditions() -> Vec<u8> {
     Vec::new()
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Trade {
+    #[serde(rename = "i")]
+    pub trade_id: String,
+    #[serde(rename = "x")]
+    pub exchange_id: u8,
+    #[serde(rename = "p")]
+    pub price: f64,
+    #[serde(rename = "s")]
+    pub size: u32,
+    #[serde(rename = "c", default = "default_conditions")]
+    pub conditions: Vec<u8>,
+    #[serde(rename = "t")]
+    pub timestamp: i64,
+    #[serde(rename = "z")]
+    pub tape: Tape,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Message)]
 #[rtype(result = "()")]
-pub struct Trade {
-    #[serde(rename = "sym")]
-    symbol: String,
-    #[serde(rename = "i")]
-    trade_id: String,
-    #[serde(rename = "x")]
-    exchange_id: u8,
-    #[serde(rename = "p")]
-    price: f64,
-    #[serde(rename = "s")]
-    size: u32,
-    #[serde(rename = "c", default = "default_conditions")]
-    conditions: Vec<u8>,
-    #[serde(rename = "t")]
-    timestamp: u64,
-    #[serde(rename = "z")]
-    tape: Tape,
-}
+pub struct TickerTrade(pub String, pub Trade);
 
-struct MarketData {
-    trades: Vec<Trade>,
-    queue: DelayQueue<Trade>,
-}
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Subscribe(pub Recipient<TickerTrade>);
 
-fn get_trades(symbols: Vec<&str>, start_date: Date<Utc>, end_date: Date<Utc>) -> Vec<Trade> {
-    todo!()
-}
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Initialize(pub Vec<String>);
 
-impl MarketData {
-    fn new(mut trades: Vec<Trade>) -> Self {
-        trades.sort_by(|t1, t2| t2.timestamp.partial_cmp(&t1.timestamp).unwrap());
-        Self {
-            trades,
-            queue: DelayQueue::new(),
-        }
-    }
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Start(pub u64);
 
-    fn initialize_trades(symbols: Vec<&str>, start_date: Date<Utc>, end_date: Date<Utc>) -> Self {
-        let trades = get_trades(symbols, start_date, end_date);
-        Self::new(trades)
-    }
-
-    fn schedule_trades(&mut self, rate: u64) {
-        let mut prev_message = self.trades.pop().unwrap();
-        self.queue
-            .insert(prev_message.clone(), Duration::from_secs(0));
-        for message in &self.trades {
-            let delay = message.timestamp - prev_message.timestamp;
-            self.queue
-                .insert(message.clone(), Duration::from_millis(delay));
-            prev_message = message.clone();
-        }
-    }
-}
+pub trait Market: Actor + Handler<Subscribe> + Handler<Initialize> + Handler<Start> {}
 
 #[cfg(test)]
 mod test {
