@@ -3,7 +3,6 @@ use log::{debug, info, trace};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use tokio::stream::StreamExt;
 use tokio::time::{DelayQueue, Duration, Instant};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -68,7 +67,7 @@ impl Handler<Subscribe> for PolygonMarket {
 impl Handler<Start> for PolygonMarket {
     type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, msg: Start, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Start, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("Scheduling trades");
         let mut stream = DelayQueue::new();
         let first_message = self.trades.pop().unwrap();
@@ -77,8 +76,8 @@ impl Handler<Start> for PolygonMarket {
         stream.insert_at(first_message, actual_now + Duration::from_nanos(0));
         while let Some(message) = self.trades.pop() {
             log::trace!("Scheduling message: {:?}", &message);
-            let event_time =
-                actual_now + Duration::from_nanos((message.1.timestamp - simulated_now) / msg.0);
+            let event_time = actual_now
+                + Duration::from_nanos((message.1.timestamp - simulated_now) as u64 / msg.0);
             stream.insert_at(message, event_time);
         }
         let stream = actix::fut::wrap_stream::<_, Self>(stream);
@@ -87,7 +86,7 @@ impl Handler<Start> for PolygonMarket {
                 let trade = msg.unwrap().into_inner();
                 info!("{:?}", &trade);
                 for subscr in &act.subscribers {
-                    subscr.do_send(trade.clone());
+                    subscr.do_send(trade.clone()).unwrap();
                 }
             })
             .finish();

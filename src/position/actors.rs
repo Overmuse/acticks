@@ -1,6 +1,7 @@
 use super::types::{Position, Side};
 use crate::asset::actors::{AssetManager, GetAssetBySymbol};
 use crate::exchange::TradeFill;
+use crate::market::TickerTrade;
 use actix::prelude::*;
 use log::debug;
 use std::collections::HashMap;
@@ -19,6 +20,20 @@ impl actix::Supervised for PositionManager {}
 impl SystemService for PositionManager {
     fn service_started(&mut self, _ctx: &mut Context<Self>) {
         debug!("PositionManager service started");
+    }
+}
+
+impl Handler<TickerTrade> for PositionManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
+        let TickerTrade(ticker, trade) = msg;
+        match self.positions.get_mut(&ticker) {
+            Some(pos) => {
+                pos.update_with_price(trade.price);
+            }
+            None => (),
+        }
     }
 }
 

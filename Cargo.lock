@@ -405,6 +405,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
 
 [[package]]
+name = "bdays"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24cd2141cc6620afaaf37fa56b6ca93cf59476a99aa3ea21ee20a802e1406717"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1689,6 +1698,7 @@ dependencies = [
  "actix",
  "actix-rt",
  "actix-web",
+ "bdays",
  "chrono",
  "derive_more",
  "env_logger",

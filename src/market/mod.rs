@@ -1,5 +1,4 @@
 use actix::prelude::*;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
@@ -30,7 +29,7 @@ pub struct Trade {
     #[serde(rename = "c", default = "default_conditions")]
     pub conditions: Vec<u8>,
     #[serde(rename = "t")]
-    pub timestamp: u64,
+    pub timestamp: i64,
     #[serde(rename = "z")]
     pub tape: Tape,
 }

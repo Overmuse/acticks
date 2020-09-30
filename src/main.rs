@@ -1,16 +1,14 @@
 use actix::registry::SystemService;
-use actix::Actor;
 use actix_web::middleware::Logger;
 use actix_web::{
     web::{self, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };
-use chrono::Utc;
 use env_logger;
 use serde::Deserialize;
 use simulator::{
     account, asset, clock, exchange,
-    market::{self, Market},
+    market::{self},
     order, position,
 };
 use uuid::Uuid;
@@ -149,6 +147,15 @@ async fn main() {
     market_addr.send(market::Initialize(symbols)).await.unwrap();
     market_addr.do_send(market::Subscribe(
         exchange::Exchange::from_registry().recipient(),
+    ));
+    //market_addr.do_send(market::Subscribe(
+    //    account::actors::AccountManager::from_registry().recipient(),
+    //));
+    //market_addr.do_send(market::Subscribe(
+    //    order::actors::OrderManager::from_registry().recipient(),
+    //));
+    market_addr.do_send(market::Subscribe(
+        position::actors::PositionManager::from_registry().recipient(),
     ));
     let market_fut = market_addr.send(market::Start(60));
     let server_fut = HttpServer::new(move || {
