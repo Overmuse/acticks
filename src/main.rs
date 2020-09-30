@@ -1,12 +1,18 @@
 use actix::registry::SystemService;
+use actix::Actor;
 use actix_web::middleware::Logger;
 use actix_web::{
     web::{self, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };
+use chrono::Utc;
 use env_logger;
 use serde::Deserialize;
-use simulator::{account, asset, clock, exchange, order, position};
+use simulator::{
+    account, asset, clock, exchange,
+    market::{self, Market},
+    order, position,
+};
 use uuid::Uuid;
 
 async fn get_clock() -> Result<HttpResponse> {
@@ -111,7 +117,7 @@ async fn close_positions() -> Result<HttpResponse> {
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cash: f64 = 1_000_000.0;
     let symbols = vec![
@@ -139,7 +145,13 @@ async fn main() -> std::io::Result<()> {
         .send(exchange::SetAssets { assets })
         .await
         .unwrap();
-    HttpServer::new(move || {
+    let market_addr = market::polygon::PolygonMarket::from_registry();
+    market_addr.send(market::Initialize(symbols)).await.unwrap();
+    market_addr.do_send(market::Subscribe(
+        exchange::Exchange::from_registry().recipient(),
+    ));
+    let market_fut = market_addr.send(market::Start(60));
+    let server_fut = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .route("/account", web::get().to(get_account))
@@ -160,9 +172,10 @@ async fn main() -> std::io::Result<()> {
             .route("/positions/{symbol}", web::delete().to(close_position))
             .route("/positions", web::delete().to(close_positions))
     })
-    .bind("127.0.0.1:8000")?
-    .run()
-    .await
+    .bind("127.0.0.1:8000")
+    .unwrap()
+    .run();
+    futures::future::select(market_fut, server_fut).await;
 }
 
 #[cfg(test)]

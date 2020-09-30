@@ -3,8 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
-#[cfg(polygon)]
-pub mod Polygon;
+pub mod polygon;
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
 #[repr(u8)]
@@ -21,19 +20,19 @@ fn default_conditions() -> Vec<u8> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Trade {
     #[serde(rename = "i")]
-    trade_id: String,
+    pub trade_id: String,
     #[serde(rename = "x")]
-    exchange_id: u8,
+    pub exchange_id: u8,
     #[serde(rename = "p")]
-    price: f64,
+    pub price: f64,
     #[serde(rename = "s")]
-    size: u32,
+    pub size: u32,
     #[serde(rename = "c", default = "default_conditions")]
-    conditions: Vec<u8>,
+    pub conditions: Vec<u8>,
     #[serde(rename = "t")]
-    timestamp: u64,
+    pub timestamp: u64,
     #[serde(rename = "z")]
-    tape: Tape,
+    pub tape: Tape,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Message)]
@@ -44,10 +43,15 @@ pub struct TickerTrade(pub String, pub Trade);
 #[rtype(result = "()")]
 pub struct Subscribe(pub Recipient<TickerTrade>);
 
-pub trait Market: Actor + Handler<Subscribe> {
-    fn new(symbols: Vec<String>, start: DateTime<Utc>, end: DateTime<Utc>) -> Self;
-    fn start(&self, rate: u64);
-}
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Initialize(pub Vec<String>);
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct Start(pub u64);
+
+pub trait Market: Actor + Handler<Subscribe> + Handler<Initialize> + Handler<Start> {}
 
 #[cfg(test)]
 mod test {

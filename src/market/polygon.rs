@@ -1,15 +1,39 @@
-use log::{debug, trace};
+use super::*;
+use log::{debug, info, trace};
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use serde_json;
 use tokio::stream::StreamExt;
-use tokio::time::{DelayQueue, Duration};
-struct PolygonMarket {
-    subscribers: Vec<Recipient<TickerTrade>>,
-    trades: Vec<TickerTrade>,
-    queue: DelayQueue<TickerTrade>,
+use tokio::time::{DelayQueue, Duration, Instant};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct PolygonResponse {
+    results_count: i32,
+    db_latency: i32,
+    success: bool,
+    ticker: String,
+    results: Vec<Trade>,
 }
 
+#[derive(Default)]
+pub struct PolygonMarket {
+    subscribers: Vec<Recipient<TickerTrade>>,
+    trades: Vec<TickerTrade>,
+}
+
+impl actix::Supervised for PolygonMarket {}
+
+impl SystemService for PolygonMarket {}
+
 impl PolygonMarket {
-    async fn download_data(&self, symbol: &str) -> Result<Vec<TickerTrade>, i32> {
+    pub fn new() -> Self {
+        PolygonMarket {
+            subscribers: vec![],
+            trades: vec![],
+        }
+    }
+
+    async fn download_data(symbol: &str) -> Result<Vec<TickerTrade>, i32> {
         let client = Client::new();
         let url = format!(
             "https://api.polygon.io/v2/ticks/stocks/trades/{}/2020-09-18?apiKey={}",
@@ -36,39 +60,60 @@ impl Actor for PolygonMarket {
 impl Handler<Subscribe> for PolygonMarket {
     type Result = ();
 
-    fn handle(&mut self, msg: Subscribe, _ctx: Context<Self>) {
-        self.subscribers.push(msg.0)
+    fn handle(&mut self, msg: Subscribe, _ctx: &mut Context<Self>) {
+        self.subscribers.push(msg.0);
     }
 }
 
-impl Market for PolygonMarket {
-    fn new(symbols: String, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
-        let mut trades = vec![];
-        for symbol in symbols {
-            debug!("Downloading data for {}", &symbol);
-            let mut data = self.download_data(&symbol).await.unwrap();
-            trades.append(&mut data);
-        }
-        trades.sort_by(|t1, t2| t2.1.timestamp.partial_cmp(&t1.1.timestamp).unwrap());
-        PolygonMarket {
-            subscribers: vec![],
-            trades,
-            queue: DelayQueue::new(),
-        }
-    }
+impl Handler<Start> for PolygonMarket {
+    type Result = ResponseActFuture<Self, ()>;
 
-    fn start(&mut self, rate: u64) {
+    fn handle(&mut self, msg: Start, ctx: &mut Context<Self>) -> Self::Result {
         debug!("Scheduling trades");
-        let first_message: TickerTrade = self.trades.pop().unwrap();
+        let mut stream = DelayQueue::new();
+        let first_message = self.trades.pop().unwrap();
         let actual_now = Instant::now();
         let simulated_now = first_message.1.timestamp;
-        self.queue
-            .insert_at(first_message, actual_now + Duration::from_nanos(0));
+        stream.insert_at(first_message, actual_now + Duration::from_nanos(0));
         while let Some(message) = self.trades.pop() {
             log::trace!("Scheduling message: {:?}", &message);
             let event_time =
-                actual_now + Duration::from_nanos((message.1.timestamp - simulated_now) / rate);
-            self.queue.insert_at(message, event_time);
+                actual_now + Duration::from_nanos((message.1.timestamp - simulated_now) / msg.0);
+            stream.insert_at(message, event_time);
         }
+        let stream = actix::fut::wrap_stream::<_, Self>(stream);
+        let fut = stream
+            .map(|msg, act, _ctx| {
+                let trade = msg.unwrap().into_inner();
+                info!("{:?}", &trade);
+                for subscr in &act.subscribers {
+                    subscr.do_send(trade.clone());
+                }
+            })
+            .finish();
+        Box::pin(fut)
     }
 }
+impl Handler<Initialize> for PolygonMarket {
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, msg: Initialize, _ctx: &mut Context<Self>) -> Self::Result {
+        let fut = async {
+            let mut trades = vec![];
+            for symbol in msg.0 {
+                info!("Downloading data for {}", &symbol);
+                let mut data = PolygonMarket::download_data(&symbol).await.unwrap();
+                trades.append(&mut data);
+            }
+            trades
+        }
+        .into_actor(self)
+        .map(|mut trades, act, _ctx| {
+            trades.sort_by(|t1, t2| t2.1.timestamp.partial_cmp(&t1.1.timestamp).unwrap());
+            act.trades = trades;
+        });
+        Box::pin(fut)
+    }
+}
+
+impl Market for PolygonMarket {}
