@@ -1,17 +1,24 @@
-use actix::registry::SystemService;
+use actix::prelude::*;
 use actix_web::middleware::Logger;
 use actix_web::{
-    web::{self, Json, Path, Query},
-    App, HttpResponse, HttpServer, Result,
+    web::{self, Data, Json, Path, Payload, Query},
+    App, HttpRequest, HttpResponse, HttpServer, Result,
 };
 use env_logger;
 use serde::Deserialize;
 use simulator::{
-    account, asset, clock, exchange,
-    market::{self},
-    order, position,
+    account, asset, clock, exchange, market, order, position,
+    ws::{Message, Server},
 };
 use uuid::Uuid;
+
+async fn ws_route(
+    req: HttpRequest,
+    stream: Payload,
+    server: Data<Addr<Server>>,
+) -> Result<HttpResponse> {
+    todo!()
+}
 
 async fn get_clock() -> Result<HttpResponse> {
     HttpResponse::Ok().json(clock::get_clock()).await
@@ -125,6 +132,7 @@ async fn main() {
         "SUNW".into(),
         "DRD".into(),
     ];
+    let server = Server::default().start();
     account::actors::AccountManager::from_registry()
         .send(account::actors::SetCash(cash))
         .await
@@ -148,12 +156,6 @@ async fn main() {
     market_addr.do_send(market::Subscribe(
         exchange::Exchange::from_registry().recipient(),
     ));
-    //market_addr.do_send(market::Subscribe(
-    //    account::actors::AccountManager::from_registry().recipient(),
-    //));
-    //market_addr.do_send(market::Subscribe(
-    //    order::actors::OrderManager::from_registry().recipient(),
-    //));
     market_addr.do_send(market::Subscribe(
         position::actors::PositionManager::from_registry().recipient(),
     ));
@@ -161,6 +163,7 @@ async fn main() {
     let server_fut = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .data(server.clone())
             .route("/account", web::get().to(get_account))
             .route("/clock", web::get().to(get_clock))
             .route("/assets", web::get().to(get_assets))
@@ -178,6 +181,7 @@ async fn main() {
             .route("/positions/{symbol}", web::get().to(get_position_by_symbol))
             .route("/positions/{symbol}", web::delete().to(close_position))
             .route("/positions", web::delete().to(close_positions))
+            .service(web::resource("/ws/").to(ws_route))
     })
     .bind("127.0.0.1:8000")
     .unwrap()

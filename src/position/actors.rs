@@ -26,7 +26,7 @@ impl SystemService for PositionManager {
 impl Handler<TickerTrade> for PositionManager {
     type Result = ();
 
-    fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: TickerTrade, ctx: &mut Context<Self>) {
         let TickerTrade(ticker, trade) = msg;
         match self.positions.get_mut(&ticker) {
             Some(pos) => {

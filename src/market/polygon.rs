@@ -84,7 +84,7 @@ impl Handler<Start> for PolygonMarket {
         let fut = stream
             .map(|msg, act, _ctx| {
                 let trade = msg.unwrap().into_inner();
-                info!("{:?}", &trade);
+                debug!("{:?}", &trade);
                 for subscr in &act.subscribers {
                     subscr.do_send(trade.clone()).unwrap();
                 }
