@@ -1,15 +1,18 @@
 use crate::asset;
 use crate::errors::{Error, Result};
 use crate::exchange::{self, Exchange, TransmitOrder};
-use actors::{GetOrders, GetOrderById, GetOrderByClientOrderId, CancelOrder, CancelOrders, PostOrder, OrderManager};
-use chrono::Utc;
-use types::{Order, OrderIntent};
 use actix::prelude::*;
+use actors::{
+    CancelOrder, CancelOrders, GetOrderByClientOrderId, GetOrderById, GetOrders, OrderManager,
+    PostOrder,
+};
+use chrono::Utc;
 use std::collections::HashMap;
+use types::{Order, OrderIntent};
 use uuid::Uuid;
 
-pub mod types;
 pub mod actors;
+pub mod types;
 
 pub async fn get_orders() -> HashMap<Uuid, Order> {
     OrderManager::from_registry()
@@ -67,7 +70,7 @@ pub async fn post_order(o: OrderIntent) -> Result<Order> {
             .send(TransmitOrder(order))
             .await
             .unwrap();
-        if let Some(fill) = potential_fill {
+        if let Some(fill) = potential_fill.unwrap() {
             exchange::update_from_fill(&fill).await.unwrap();
         }
     });

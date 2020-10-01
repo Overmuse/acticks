@@ -49,11 +49,11 @@ impl SystemService for Exchange {
 }
 
 #[derive(Message)]
-#[rtype(result = "Option<TradeFill>")]
+#[rtype(result = "Result<Option<TradeFill>>")]
 pub struct TransmitOrder(pub Order);
 
 impl Handler<TransmitOrder> for Exchange {
-    type Result = Option<TradeFill>;
+    type Result = Result<Option<TradeFill>>;
 
     fn handle(&mut self, msg: TransmitOrder, _ctx: &mut Context<Self>) -> Self::Result {
         self.transmit_order(msg.0)
@@ -70,12 +70,8 @@ impl Handler<SetAssets> for Exchange {
     type Result = ();
 
     fn handle(&mut self, msg: SetAssets, _ctx: &mut Context<Self>) -> Self::Result {
-        let mut prices = HashMap::new();
-        msg.assets.iter().for_each(|a| {
-            prices.insert(a.symbol.clone(), 100.0);
-        });
         self.assets = msg.assets;
-        self.prices = prices;
+        self.prices = HashMap::new();
     }
 }
 
@@ -102,21 +98,21 @@ impl Exchange {
         }
     }
 
-    pub fn transmit_order(&mut self, o: Order) -> Option<TradeFill> {
+    pub fn transmit_order(&mut self, o: Order) -> Result<Option<TradeFill>> {
         match (&self.market_status, o.extended_hours) {
             (MarketStatus::Open, _)
             | (MarketStatus::PreOpen, true)
             | (MarketStatus::PostClose, true) => match o.order_type {
                 OrderType::Market => {
-                    let price = self.get_price(&o.symbol);
-                    Some(self.execute(o, price))
+                    let price = *self.get_price(&o.symbol)?;
+                    Ok(Some(self.execute(o, price)))
                 }
                 _ => self.execute_or_store(o),
             },
             (MarketStatus::Maintenance, _) => todo!(),
             _ => {
                 self.store(o);
-                None
+                Ok(None)
             }
         }
     }
@@ -142,13 +138,13 @@ impl Exchange {
         }
     }
 
-    pub fn execute_or_store(&mut self, o: Order) -> Option<TradeFill> {
-        let price = self.get_price(&o.symbol);
+    pub fn execute_or_store(&mut self, o: Order) -> Result<Option<TradeFill>> {
+        let price = *self.get_price(&o.symbol)?;
         if is_marketable(&o, price) {
-            Some(self.execute(o, price))
+            Ok(Some(self.execute(o, price)))
         } else {
             self.store(o);
-            None
+            Ok(None)
         }
     }
 
@@ -156,8 +152,10 @@ impl Exchange {
         self.stored_orders.push(o);
     }
 
-    pub fn get_price(&self, symbol: &str) -> f64 {
-        *self.prices.get(symbol).unwrap()
+    pub fn get_price(&self, symbol: &str) -> Result<&f64> {
+        self.prices
+            .get(symbol)
+            .ok_or_else(|| Error::UninitializedPrice)
     }
 
     pub fn update_price(&mut self, symbol: &str, price: f64) -> Vec<TradeFill> {
@@ -185,18 +183,9 @@ impl Default for Exchange {
 }
 
 pub async fn update_from_fill(tf: &TradeFill) -> Result<()> {
-    OrderManager::from_registry()
-        .send(tf.clone())
-        .await
-        .map_err(|_| Error::Other)?;
-    PositionManager::from_registry()
-        .send(tf.clone())
-        .await
-        .unwrap();
-    AccountManager::from_registry()
-        .send(tf.clone())
-        .await
-        .unwrap();
+    OrderManager::from_registry().send(tf.clone()).await?;
+    PositionManager::from_registry().send(tf.clone()).await?;
+    AccountManager::from_registry().send(tf.clone()).await?;
     Ok(())
 }
 fn is_marketable(o: &Order, price: f64) -> bool {

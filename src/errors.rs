@@ -1,13 +1,30 @@
 use actix_web::{dev::HttpResponseBuilder, error, http::header, http::StatusCode, HttpResponse};
-use derive_more::{Display, Error};
+use thiserror::Error;
 
-#[derive(Debug, Clone, Display, Error)]
+#[derive(Debug, Error)]
 pub enum Error {
-    #[display(fmt = "resource not found")]
+    #[error("resource not found")]
     NotFound,
-    #[display(fmt = "target order is no longer cancelable")]
+
+    #[error("target order is no longer cancelable")]
     Uncancelable,
-    #[display(fmt = "internal error")]
+
+    #[error("tried to get uninitialize price")]
+    UninitializedPrice,
+
+    #[error("Missing environment variable: {0}")]
+    MissingEnv(#[from] std::env::VarError),
+
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error("Serde error: {0}")]
+    Serde(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Actix(#[from] actix::MailboxError),
+
+    #[error("internal error")]
     Other,
 }
 
@@ -24,7 +41,7 @@ impl error::ResponseError for Error {
         match *self {
             Error::NotFound => StatusCode::NOT_FOUND,
             Error::Uncancelable => StatusCode::UNPROCESSABLE_ENTITY,
-            Error::Other => StatusCode::INTERNAL_SERVER_ERROR,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

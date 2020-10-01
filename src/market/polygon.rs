@@ -1,4 +1,5 @@
 use super::*;
+use crate::errors::Result;
 use log::{debug, info, trace};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -32,17 +33,17 @@ impl PolygonMarket {
         }
     }
 
-    async fn download_data(symbol: &str) -> Result<Vec<TickerTrade>, i32> {
+    async fn download_data(symbol: &str) -> Result<Vec<TickerTrade>> {
         let client = Client::new();
         let url = format!(
             "https://api.polygon.io/v2/ticks/stocks/trades/{}/2020-09-18?apiKey={}",
             symbol,
-            std::env::var("POLYGON_KEY").unwrap()
+            std::env::var("POLYGON_KEY")?
         );
         trace!("Making request: {}", &url);
-        let req = client.get(&url).send().await.unwrap();
-        let res = req.text().await.unwrap();
-        let res: PolygonResponse = serde_json::from_str(&res).unwrap();
+        let req = client.get(&url).send().await?;
+        let res = req.text().await?;
+        let res: PolygonResponse = serde_json::from_str(&res)?;
         Ok(res
             .results
             .iter()

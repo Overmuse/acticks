@@ -18,11 +18,11 @@ async fn get_clock() -> Result<HttpResponse> {
 }
 
 async fn get_account() -> Result<HttpResponse> {
-    HttpResponse::Ok().json(account::get_account().await).await
+    HttpResponse::Ok().json(account::get_account().await?).await
 }
 
 async fn get_assets() -> Result<HttpResponse> {
-    let assets: Vec<asset::types::Asset> = asset::get_assets().await.values().cloned().collect();
+    let assets: Vec<asset::types::Asset> = asset::get_assets().await?.values().cloned().collect();
     HttpResponse::Ok().json(assets).await
 }
 
@@ -87,44 +87,19 @@ async fn get_position_by_symbol(symbol: Path<String>) -> Result<HttpResponse> {
 }
 
 async fn close_position(symbol: Path<String>) -> Result<HttpResponse> {
-    let position = position::get_position(symbol.to_string()).await?;
-    let order_side = match position.side {
-        position::types::Side::Long => order::types::Side::Sell,
-        position::types::Side::Short => order::types::Side::Buy,
-    };
-    let order_intent = order::types::OrderIntent::new(&symbol)
-        .qty(position.qty.abs() as u32)
-        .side(order_side);
-    order::post_order(order_intent).await?;
+    position::close_position(symbol.to_string()).await?;
     HttpResponse::Ok().await
 }
 
 async fn close_positions() -> Result<HttpResponse> {
-    let positions = position::get_positions().await;
-    for position in positions.values() {
-        let order_side = match position.side {
-            position::types::Side::Long => order::types::Side::Sell,
-            position::types::Side::Short => order::types::Side::Buy,
-        };
-        let order_intent = order::types::OrderIntent::new(&position.symbol)
-            .qty(position.qty.abs() as u32)
-            .side(order_side);
-        order::post_order(order_intent).await?;
-    }
+    position::close_positions().await?;
     HttpResponse::Ok().await
 }
 
-#[actix_web::main]
-async fn main() {
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    let cash: f64 = 1_000_000.0;
-    let symbols = vec![
-        "PROP".into(),
-        "IDEX".into(),
-        "WORK".into(),
-        "SUNW".into(),
-        "DRD".into(),
-    ];
+async fn initialize_actors(
+    cash: f64,
+    symbols: Vec<String>,
+) -> actix::prelude::Request<market::polygon::PolygonMarket, market::Start> {
     account::actors::AccountManager::from_registry()
         .send(account::actors::SetCash(cash))
         .await
@@ -148,16 +123,24 @@ async fn main() {
     market_addr.do_send(market::Subscribe(
         exchange::Exchange::from_registry().recipient(),
     ));
-    //market_addr.do_send(market::Subscribe(
-    //    account::actors::AccountManager::from_registry().recipient(),
-    //));
-    //market_addr.do_send(market::Subscribe(
-    //    order::actors::OrderManager::from_registry().recipient(),
-    //));
     market_addr.do_send(market::Subscribe(
         position::actors::PositionManager::from_registry().recipient(),
     ));
-    let market_fut = market_addr.send(market::Start(60));
+    market_addr.send(market::Start(60))
+}
+
+#[actix_web::main]
+async fn main() {
+    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let cash: f64 = 1_000_000.0;
+    let symbols = vec![
+        "PROP".into(),
+        "IDEX".into(),
+        "WORK".into(),
+        "SUNW".into(),
+        "DRD".into(),
+    ];
+    let market_fut = initialize_actors(cash, symbols).await;
     let server_fut = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
