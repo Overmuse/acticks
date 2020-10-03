@@ -1,4 +1,5 @@
 use super::types::{Order, OrderStatus};
+use crate::errors::{Error, Result};
 use crate::exchange::TradeFill;
 use actix::prelude::*;
 use log::debug;
@@ -80,7 +81,7 @@ impl Handler<PostOrder> for OrderManager {
 }
 
 impl Handler<TradeFill> for OrderManager {
-    type Result = ();
+    type Result = Result<()>;
 
     fn handle(&mut self, msg: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         self.orders.entry(msg.order.id).and_modify(|order| {
@@ -91,6 +92,7 @@ impl Handler<TradeFill> for OrderManager {
             order.filled_avg_price = Some(msg.price);
             order.status = OrderStatus::Filled;
         });
+        Ok(())
     }
 }
 
@@ -114,13 +116,17 @@ impl Handler<CancelOrders> for OrderManager {
 }
 
 #[derive(Message)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<()>")]
 pub struct CancelOrder(pub Uuid);
 
 impl Handler<CancelOrder> for OrderManager {
-    type Result = ();
+    type Result = Result<()>;
 
     fn handle(&mut self, msg: CancelOrder, _ctx: &mut Context<Self>) -> Self::Result {
-        self.orders.get_mut(&msg.0).unwrap().cancel().unwrap();
+        self.orders
+            .get_mut(&msg.0)
+            .ok_or_else(|| Error::NotFound)?
+            .cancel()?;
+        Ok(())
     }
 }

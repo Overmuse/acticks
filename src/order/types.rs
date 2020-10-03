@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
-use crate::utils::{from_str, to_string, from_str_optional, to_string_optional};
-use uuid::Uuid;
-use crate::errors::{Error, Result};
 use crate::asset::types::{Asset, AssetClass};
-use std::ops::Neg;
+use crate::errors::{Error, Result};
+use crate::utils::{from_str, from_str_optional, to_string, to_string_optional};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::ops::Neg;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]

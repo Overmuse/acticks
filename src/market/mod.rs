@@ -1,5 +1,5 @@
-use actix::prelude::*;
 use crate::errors::Result;
+use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 

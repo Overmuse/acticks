@@ -1,5 +1,9 @@
 use super::types::{Position, Side};
-use crate::asset::actors::{AssetManager, GetAssetBySymbol};
+use crate::asset::{
+    actors::{AssetManager, GetAssetBySymbol},
+    types::Asset,
+};
+use crate::errors::{Error, Result};
 use crate::exchange::TradeFill;
 use crate::market::TickerTrade;
 use actix::prelude::*;
@@ -64,7 +68,7 @@ impl Handler<GetPositionBySymbol> for PositionManager {
 }
 
 impl Handler<TradeFill> for PositionManager {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, msg: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         Box::pin(
@@ -74,13 +78,13 @@ impl Handler<TradeFill> for PositionManager {
                     .send(GetAssetBySymbol {
                         symbol: msg.order.symbol.clone(),
                     })
-                    .await
-                    .unwrap()
-                    .unwrap();
-                (msg, asset)
+                    .await?
+                    .ok_or_else(|| Error::NotFound)?;
+                Ok::<(TradeFill, Asset), Error>((msg, asset))
             }
             .into_actor(self)
-            .map(|(msg, asset), act, _ctx| {
+            .map(|res, act, _ctx| {
+                let (msg, asset) = res?;
                 act.positions
                     .entry(msg.order.symbol.clone())
                     .and_modify(|p| {
@@ -118,6 +122,7 @@ impl Handler<TradeFill> for PositionManager {
                         change_today: 0.0,
                     });
                 act.positions.retain(|_, v| v.qty != 0);
+                Ok(())
             }),
         )
     }

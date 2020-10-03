@@ -8,23 +8,22 @@ use types::{Position, Side};
 pub mod actors;
 pub mod types;
 
-pub async fn get_positions() -> HashMap<String, Position> {
+pub async fn get_positions() -> Result<HashMap<String, Position>> {
     PositionManager::from_registry()
         .send(GetPositions {})
         .await
-        .unwrap()
+        .map_err(|e| Error::from(e))
 }
 
 pub async fn get_position(symbol: String) -> Result<Position> {
     PositionManager::from_registry()
         .send(GetPositionBySymbol { symbol })
-        .await
-        .unwrap()
+        .await?
         .ok_or(Error::Other)
 }
 
 pub async fn close_positions() -> Result<()> {
-    let positions = get_positions().await;
+    let positions = get_positions().await?;
     for position in positions.values() {
         let order_side = match position.side {
             Side::Long => order::types::Side::Sell,

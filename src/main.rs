@@ -77,7 +77,7 @@ async fn cancel_order_by_id(id: Path<Uuid>) -> Result<HttpResponse> {
 
 async fn get_positions() -> Result<HttpResponse> {
     let positions: Vec<position::types::Position> =
-        position::get_positions().await.values().cloned().collect();
+        position::get_positions().await?.values().cloned().collect();
     HttpResponse::Ok().json(positions).await
 }
 
@@ -102,21 +102,27 @@ async fn initialize_actors(
 ) -> Result<actix::prelude::Request<market::polygon::PolygonMarket, market::Start>> {
     account::actors::AccountManager::from_registry()
         .send(account::actors::SetCash(cash))
-        .await.unwrap();
+        .await
+        .unwrap();
     asset::actors::AssetManager::from_registry()
         .send(asset::actors::SetAssets {
             symbols: symbols.clone(),
         })
-        .await.unwrap();
+        .await
+        .unwrap();
     let assets: Vec<asset::types::Asset> = symbols
         .iter()
         .map(|x| asset::types::Asset::from_symbol(x))
         .collect();
     exchange::Exchange::from_registry()
         .send(exchange::SetAssets { assets })
-        .await.unwrap();
+        .await
+        .unwrap();
     let market_addr = market::polygon::PolygonMarket::from_registry();
-    market_addr.send(market::Initialize(symbols)).await.unwrap()?;
+    market_addr
+        .send(market::Initialize(symbols))
+        .await
+        .unwrap()?;
     market_addr.do_send(market::Subscribe(
         exchange::Exchange::from_registry().recipient(),
     ));

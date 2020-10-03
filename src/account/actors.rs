@@ -1,4 +1,5 @@
 use crate::account::types::Account;
+use crate::errors::Result;
 use crate::exchange::TradeFill;
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
@@ -54,7 +55,7 @@ where
 }
 
 impl Handler<TradeFill> for AccountManager {
-    type Result = ();
+    type Result = Result<()>;
 
     fn handle(&mut self, tf: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         trace!("Received TradeFill");
@@ -70,6 +71,7 @@ impl Handler<TradeFill> for AccountManager {
         self.account.daytrading_buying_power =
             (self.account.equity - self.account.initial_margin).max(0.0) * self.account.multiplier;
         self.account.regt_buying_power = self.account.buying_power / 2.;
+        Ok(())
     }
 }
 

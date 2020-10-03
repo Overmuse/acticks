@@ -38,16 +38,14 @@ pub async fn get_order_by_client_id(client_id: &str, _nested: bool) -> Result<Or
 }
 
 pub async fn cancel_orders() -> Result<()> {
-    OrderManager::from_registry()
-        .send(CancelOrders {})
-        .await?;
+    OrderManager::from_registry().send(CancelOrders {}).await?;
     Ok(())
 }
 
 pub async fn cancel_order(id: Uuid) -> Result<()> {
     OrderManager::from_registry()
         .send(CancelOrder(id))
-        .await?;
+        .await??;
     Ok(())
 }
 
@@ -63,9 +61,7 @@ pub async fn post_order(o: OrderIntent) -> Result<Order> {
                 order: order.clone(),
             })
             .await?;
-        let potential_fill = Exchange::from_registry()
-            .send(TransmitOrder(order))
-            .await?;
+        let potential_fill = Exchange::from_registry().send(TransmitOrder(order)).await?;
         if let Some(fill) = potential_fill? {
             exchange::update_from_fill(&fill).await?;
         }

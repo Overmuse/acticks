@@ -10,10 +10,11 @@ use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use log::debug;
+use log::warn;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Message)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<()>")]
 pub struct TradeFill {
     pub time: DateTime<Utc>,
     pub qty: i32,
@@ -80,7 +81,10 @@ impl Handler<TickerTrade> for Exchange {
 
     fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
         let TickerTrade(ticker, trade) = msg;
-        self.prices.entry(ticker).and_modify(|x| *x = trade.price).or_insert(trade.price);
+        self.prices
+            .entry(ticker)
+            .and_modify(|x| *x = trade.price)
+            .or_insert(trade.price);
     }
 }
 
@@ -139,6 +143,7 @@ impl Exchange {
     }
 
     pub fn execute_or_store(&mut self, o: Order) -> Result<Option<TradeFill>> {
+        warn!("{:?}", self.get_price(&o.symbol));
         let price = *self.get_price(&o.symbol)?;
         if is_marketable(&o, price) {
             Ok(Some(self.execute(o, price)))
@@ -183,9 +188,9 @@ impl Default for Exchange {
 }
 
 pub async fn update_from_fill(tf: &TradeFill) -> Result<()> {
-    OrderManager::from_registry().send(tf.clone()).await?;
-    PositionManager::from_registry().send(tf.clone()).await?;
-    AccountManager::from_registry().send(tf.clone()).await?;
+    OrderManager::from_registry().send(tf.clone()).await??;
+    PositionManager::from_registry().send(tf.clone()).await??;
+    AccountManager::from_registry().send(tf.clone()).await??;
     Ok(())
 }
 fn is_marketable(o: &Order, price: f64) -> bool {
