@@ -1,5 +1,5 @@
 use super::*;
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 use log::{debug, info, trace};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -95,22 +95,24 @@ impl Handler<Start> for PolygonMarket {
     }
 }
 impl Handler<Initialize> for PolygonMarket {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, msg: Initialize, _ctx: &mut Context<Self>) -> Self::Result {
         let fut = async {
             let mut trades = vec![];
             for symbol in msg.0 {
                 info!("Downloading data for {}", &symbol);
-                let mut data = PolygonMarket::download_data(&symbol).await.unwrap();
+                let mut data = PolygonMarket::download_data(&symbol).await?;
                 trades.append(&mut data);
             }
-            trades
+            Ok::<Vec<TickerTrade>, Error>(trades)
         }
         .into_actor(self)
-        .map(|mut trades, act, _ctx| {
+        .map(|trades, act, _ctx| {
+            let mut trades = trades?;
             trades.sort_by(|t1, t2| t2.1.timestamp.partial_cmp(&t1.1.timestamp).unwrap());
             act.trades = trades;
+            Ok(())
         });
         Box::pin(fut)
     }

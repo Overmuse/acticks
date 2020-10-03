@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use crate::errors::Result;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
@@ -43,7 +44,7 @@ pub struct TickerTrade(pub String, pub Trade);
 pub struct Subscribe(pub Recipient<TickerTrade>);
 
 #[derive(Message)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<()>")]
 pub struct Initialize(pub Vec<String>);
 
 #[derive(Message)]

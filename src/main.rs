@@ -99,38 +99,35 @@ async fn close_positions() -> Result<HttpResponse> {
 async fn initialize_actors(
     cash: f64,
     symbols: Vec<String>,
-) -> actix::prelude::Request<market::polygon::PolygonMarket, market::Start> {
+) -> Result<actix::prelude::Request<market::polygon::PolygonMarket, market::Start>> {
     account::actors::AccountManager::from_registry()
         .send(account::actors::SetCash(cash))
-        .await
-        .unwrap();
+        .await.unwrap();
     asset::actors::AssetManager::from_registry()
         .send(asset::actors::SetAssets {
             symbols: symbols.clone(),
         })
-        .await
-        .unwrap();
+        .await.unwrap();
     let assets: Vec<asset::types::Asset> = symbols
         .iter()
         .map(|x| asset::types::Asset::from_symbol(x))
         .collect();
     exchange::Exchange::from_registry()
         .send(exchange::SetAssets { assets })
-        .await
-        .unwrap();
+        .await.unwrap();
     let market_addr = market::polygon::PolygonMarket::from_registry();
-    market_addr.send(market::Initialize(symbols)).await.unwrap();
+    market_addr.send(market::Initialize(symbols)).await.unwrap()?;
     market_addr.do_send(market::Subscribe(
         exchange::Exchange::from_registry().recipient(),
     ));
     market_addr.do_send(market::Subscribe(
         position::actors::PositionManager::from_registry().recipient(),
     ));
-    market_addr.send(market::Start(60))
+    Ok(market_addr.send(market::Start(60)))
 }
 
 #[actix_web::main]
-async fn main() {
+async fn main() -> Result<()> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cash: f64 = 1_000_000.0;
     let symbols = vec![
@@ -140,7 +137,7 @@ async fn main() {
         "SUNW".into(),
         "DRD".into(),
     ];
-    let market_fut = initialize_actors(cash, symbols).await;
+    let market_fut = initialize_actors(cash, symbols).await?;
     let server_fut = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
@@ -162,10 +159,10 @@ async fn main() {
             .route("/positions/{symbol}", web::delete().to(close_position))
             .route("/positions", web::delete().to(close_positions))
     })
-    .bind("127.0.0.1:8000")
-    .unwrap()
+    .bind("127.0.0.1:8000")?
     .run();
     futures::future::select(market_fut, server_fut).await;
+    Ok(())
 }
 
 #[cfg(test)]
