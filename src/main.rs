@@ -37,7 +37,7 @@ async fn get_asset(symbol_or_id: Path<String>) -> Result<HttpResponse> {
 
 async fn get_orders() -> Result<HttpResponse> {
     let mut orders: Vec<order::types::Order> =
-        order::get_orders().await.values().cloned().collect();
+        order::get_orders().await?.values().cloned().collect();
     orders.sort_unstable_by(|a, b| b.created_at.partial_cmp(&a.created_at).unwrap());
     HttpResponse::Ok().json(orders).await
 }
@@ -66,12 +66,12 @@ async fn post_order(oi: Json<order::types::OrderIntent>) -> Result<HttpResponse>
 }
 
 async fn cancel_orders() -> Result<HttpResponse> {
-    order::cancel_orders().await;
+    order::cancel_orders().await?;
     HttpResponse::Ok().await
 }
 
 async fn cancel_order_by_id(id: Path<Uuid>) -> Result<HttpResponse> {
-    order::cancel_order(*id).await;
+    order::cancel_order(*id).await?;
     HttpResponse::Ok().await
 }
 

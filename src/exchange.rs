@@ -80,7 +80,7 @@ impl Handler<TickerTrade> for Exchange {
 
     fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
         let TickerTrade(ticker, trade) = msg;
-        self.prices.entry(ticker).and_modify(|x| *x = trade.price);
+        self.prices.entry(ticker).and_modify(|x| *x = trade.price).or_insert(trade.price);
     }
 }
 

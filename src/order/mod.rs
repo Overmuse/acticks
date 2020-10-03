@@ -14,18 +14,17 @@ use uuid::Uuid;
 pub mod actors;
 pub mod types;
 
-pub async fn get_orders() -> HashMap<Uuid, Order> {
+pub async fn get_orders() -> Result<HashMap<Uuid, Order>> {
     OrderManager::from_registry()
         .send(GetOrders {})
         .await
-        .unwrap()
+        .map_err(|e| Error::from(e))
 }
 
 pub async fn get_order(id: Uuid) -> Result<Order> {
     OrderManager::from_registry()
         .send(GetOrderById { id })
-        .await
-        .unwrap()
+        .await?
         .ok_or(Error::NotFound)
 }
 
@@ -34,23 +33,22 @@ pub async fn get_order_by_client_id(client_id: &str, _nested: bool) -> Result<Or
         .send(GetOrderByClientOrderId {
             client_order_id: client_id.to_string(),
         })
-        .await
-        .unwrap()
+        .await?
         .ok_or(Error::NotFound)
 }
 
-pub async fn cancel_orders() {
+pub async fn cancel_orders() -> Result<()> {
     OrderManager::from_registry()
         .send(CancelOrders {})
-        .await
-        .unwrap();
+        .await?;
+    Ok(())
 }
 
-pub async fn cancel_order(id: Uuid) {
+pub async fn cancel_order(id: Uuid) -> Result<()> {
     OrderManager::from_registry()
         .send(CancelOrder(id))
-        .await
-        .unwrap();
+        .await?;
+    Ok(())
 }
 
 pub async fn post_order(o: OrderIntent) -> Result<Order> {
@@ -64,15 +62,14 @@ pub async fn post_order(o: OrderIntent) -> Result<Order> {
             .send(PostOrder {
                 order: order.clone(),
             })
-            .await
-            .unwrap();
+            .await?;
         let potential_fill = Exchange::from_registry()
             .send(TransmitOrder(order))
-            .await
-            .unwrap();
-        if let Some(fill) = potential_fill.unwrap() {
-            exchange::update_from_fill(&fill).await.unwrap();
+            .await?;
+        if let Some(fill) = potential_fill? {
+            exchange::update_from_fill(&fill).await?;
         }
+        Ok::<(), Error>(())
     });
     Ok(o2)
 }
