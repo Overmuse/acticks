@@ -1,7 +1,7 @@
 use crate::account::actors::AccountManager;
 use crate::asset::types::Asset;
 use crate::errors::{Error, Result};
-use crate::market::TickerTrade;
+use crate::market::Trade;
 use crate::order::{
     actors::OrderManager,
     types::{Order, OrderType, Side},
@@ -76,15 +76,14 @@ impl Handler<SetAssets> for Exchange {
     }
 }
 
-impl Handler<TickerTrade> for Exchange {
+impl Handler<Trade> for Exchange {
     type Result = ();
 
-    fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
-        let TickerTrade(ticker, trade) = msg;
+    fn handle(&mut self, msg: Trade, _ctx: &mut Context<Self>) {
         self.prices
-            .entry(ticker)
-            .and_modify(|x| *x = trade.price)
-            .or_insert(trade.price);
+            .entry(msg.symbol.clone())
+            .and_modify(|x| *x = msg.price)
+            .or_insert(msg.price);
     }
 }
 

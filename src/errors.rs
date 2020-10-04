@@ -15,6 +15,7 @@ pub enum Error {
     #[error("Missing environment variable: {0}")]
     MissingEnv(#[from] std::env::VarError),
 
+    #[cfg(feature = "polygon")]
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
 

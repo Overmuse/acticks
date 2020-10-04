@@ -5,7 +5,7 @@ use crate::asset::{
 };
 use crate::errors::{Error, Result};
 use crate::exchange::TradeFill;
-use crate::market::TickerTrade;
+use crate::market::Trade;
 use actix::prelude::*;
 use log::debug;
 use std::collections::HashMap;
@@ -27,14 +27,13 @@ impl SystemService for PositionManager {
     }
 }
 
-impl Handler<TickerTrade> for PositionManager {
+impl Handler<Trade> for PositionManager {
     type Result = ();
 
-    fn handle(&mut self, msg: TickerTrade, _ctx: &mut Context<Self>) {
-        let TickerTrade(ticker, trade) = msg;
-        match self.positions.get_mut(&ticker) {
+    fn handle(&mut self, msg: Trade, _ctx: &mut Context<Self>) {
+        match self.positions.get_mut(&msg.symbol) {
             Some(pos) => {
-                pos.update_with_price(trade.price);
+                pos.update_with_price(msg.price);
             }
             None => (),
         }

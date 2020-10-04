@@ -99,7 +99,7 @@ async fn close_positions() -> Result<HttpResponse> {
 async fn initialize_actors(
     cash: f64,
     symbols: Vec<String>,
-) -> Result<actix::prelude::Request<market::polygon::PolygonMarket, market::Start>> {
+) -> Result<actix::prelude::Request<market::polygon::historical::PolygonMarket, market::Start>> {
     account::actors::AccountManager::from_registry()
         .send(account::actors::SetCash(cash))
         .await
@@ -118,7 +118,7 @@ async fn initialize_actors(
         .send(exchange::SetAssets { assets })
         .await
         .unwrap();
-    let market_addr = market::polygon::PolygonMarket::from_registry();
+    let market_addr = market::polygon::historical::PolygonMarket::from_registry();
     market_addr
         .send(market::Initialize(symbols))
         .await

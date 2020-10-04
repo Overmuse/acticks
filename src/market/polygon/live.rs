@@ -1,25 +1,16 @@
 use super::*;
 use crate::errors::{Error, Result};
 use log::{debug, info, trace, warn};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cmp::Reverse;
 use tokio::time::{DelayQueue, Duration, Instant};
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct PolygonResponse {
-    results_count: i32,
-    db_latency: i32,
-    success: bool,
-    ticker: String,
-    results: Vec<Trade>,
-}
+use websocket::{ClientBuilder, r#async::client::Client};
 
 #[derive(Default)]
 pub struct PolygonMarket {
+    client: Option<Client>,
     subscribers: Vec<Recipient<TickerTrade>>,
-    trades: Vec<TickerTrade>,
 }
 
 impl actix::Supervised for PolygonMarket {}
@@ -29,28 +20,9 @@ impl SystemService for PolygonMarket {}
 impl PolygonMarket {
     pub fn new() -> Self {
         PolygonMarket {
+            client: None,
             subscribers: vec![],
-            trades: vec![],
         }
-    }
-
-    async fn download_data(symbol: &str) -> Result<Vec<TickerTrade>> {
-        let client = Client::new();
-        let url = format!(
-            "https://api.polygon.io/v2/ticks/stocks/trades/{}/2020-09-18?apiKey={}",
-            symbol,
-            std::env::var("POLYGON_KEY")?
-        );
-        trace!("Making request: {}", &url);
-        let req = client.get(&url).send().await?;
-        let res = req.text().await?;
-        let res: PolygonResponse = serde_json::from_str(&res)?;
-        Ok(res
-            .results
-            .iter()
-            .cloned()
-            .map(|t| TickerTrade(symbol.to_string(), t))
-            .collect())
     }
 }
 
