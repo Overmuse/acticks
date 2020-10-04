@@ -73,9 +73,12 @@ impl Handler<Start> for PolygonMarket {
         debug!("Scheduling trades");
         let mut stream = DelayQueue::new();
         if self.trades.is_empty() {
-            return Box::pin(actix::fut::ready(()))
+            return Box::pin(actix::fut::ready(()));
         }
-        let first_message = self.trades.pop().expect("Guaranteed to have at least one element");
+        let first_message = self
+            .trades
+            .pop()
+            .expect("Guaranteed to have at least one element");
         let actual_now = Instant::now();
         let simulated_now = first_message.1.timestamp;
         stream.insert_at(first_message, actual_now + Duration::from_nanos(0));
@@ -106,12 +109,15 @@ impl Handler<Initialize> for PolygonMarket {
 
     fn handle(&mut self, msg: Initialize, _ctx: &mut Context<Self>) -> Self::Result {
         let fut = async {
-            let mut trades = vec![];
-            for symbol in msg.0 {
-                info!("Downloading data for {}", &symbol);
-                let mut data = PolygonMarket::download_data(&symbol).await?;
-                trades.append(&mut data);
-            }
+            info!("Downloading data");
+            let trades: Vec<TickerTrade> =
+                futures::future::join_all(msg.0.into_iter().map(|symbol| async move {
+                    PolygonMarket::download_data(&symbol).await.unwrap()
+                }))
+                .await
+                .into_iter()
+                .flatten()
+                .collect();
             Ok::<Vec<TickerTrade>, Error>(trades)
         }
         .into_actor(self)

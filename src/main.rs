@@ -136,9 +136,7 @@ async fn initialize_actors(
 async fn main() -> Result<()> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cash: f64 = 1_000_000.0;
-    let symbols = vec![
-        "AAPL".into(),
-    ];
+    let symbols = vec!["AAPL".into(), "TSLA".into()];
     let market_fut = initialize_actors(cash, symbols).await?;
     let server_fut = HttpServer::new(move || {
         App::new()
