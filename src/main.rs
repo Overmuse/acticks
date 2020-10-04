@@ -129,7 +129,7 @@ async fn initialize_actors(
     market_addr.do_send(market::Subscribe(
         position::actors::PositionManager::from_registry().recipient(),
     ));
-    Ok(market_addr.send(market::Start(60)))
+    Ok(market_addr.send(market::Start(3600)))
 }
 
 #[actix_web::main]
@@ -137,11 +137,7 @@ async fn main() -> Result<()> {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cash: f64 = 1_000_000.0;
     let symbols = vec![
-        "PROP".into(),
-        "IDEX".into(),
-        "WORK".into(),
-        "SUNW".into(),
-        "DRD".into(),
+        "AAPL".into(),
     ];
     let market_fut = initialize_actors(cash, symbols).await?;
     let server_fut = HttpServer::new(move || {

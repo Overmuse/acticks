@@ -1,9 +1,10 @@
 use super::*;
 use crate::errors::{Error, Result};
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::cmp::Reverse;
 use tokio::time::{DelayQueue, Duration, Instant};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -71,7 +72,10 @@ impl Handler<Start> for PolygonMarket {
     fn handle(&mut self, msg: Start, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("Scheduling trades");
         let mut stream = DelayQueue::new();
-        let first_message = self.trades.pop().unwrap();
+        if self.trades.is_empty() {
+            return Box::pin(actix::fut::ready(()))
+        }
+        let first_message = self.trades.pop().expect("Guaranteed to have at least one element");
         let actual_now = Instant::now();
         let simulated_now = first_message.1.timestamp;
         stream.insert_at(first_message, actual_now + Duration::from_nanos(0));
@@ -84,10 +88,13 @@ impl Handler<Start> for PolygonMarket {
         let stream = actix::fut::wrap_stream::<_, Self>(stream);
         let fut = stream
             .map(|msg, act, _ctx| {
-                let trade = msg.unwrap().into_inner();
+                let trade = msg.expect("probably will never error").into_inner();
                 info!("{:?}", &trade);
                 for subscr in &act.subscribers {
-                    subscr.do_send(trade.clone()).unwrap();
+                    let res = subscr.do_send(trade.clone());
+                    if let Err(e) = res {
+                        warn!("Error received when sending TickerTrade: {:?}", e)
+                    }
                 }
             })
             .finish();
@@ -110,7 +117,7 @@ impl Handler<Initialize> for PolygonMarket {
         .into_actor(self)
         .map(|trades, act, _ctx| {
             let mut trades = trades?;
-            trades.sort_by(|t1, t2| t2.1.timestamp.partial_cmp(&t1.1.timestamp).unwrap());
+            trades.sort_unstable_by_key(|t| Reverse(t.1.timestamp));
             act.trades = trades;
             Ok(())
         });
