@@ -129,7 +129,7 @@ async fn initialize_actors(
     market_addr.do_send(market::Subscribe(
         position::actors::PositionManager::from_registry().recipient(),
     ));
-    Ok(market_addr.send(market::Start(3600)))
+    Ok(market_addr.send(market::Start(60)))
 }
 
 #[actix_web::main]

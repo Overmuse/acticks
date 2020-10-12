@@ -1,6 +1,7 @@
 use crate::account::types::Account;
 use crate::errors::Result;
 use crate::exchange::TradeFill;
+use crate::position::{self, actors::{PositionManager, GetPositionBySymbol}};
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
 use log::{debug, trace};
@@ -55,23 +56,44 @@ where
 }
 
 impl Handler<TradeFill> for AccountManager {
-    type Result = Result<()>;
+    type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, tf: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         trace!("Received TradeFill");
         let cost_basis = tf.price * tf.qty as f64;
         self.account.cash -= cost_basis;
-        if tf.qty > 0 {
-            self.account.long_market_value += cost_basis
-        } else {
-            self.account.short_market_value += cost_basis
-        };
         self.account.initial_margin += 0.5 * cost_basis;
         self.account.daytrade_count += 1;
         self.account.daytrading_buying_power =
             (self.account.equity - self.account.initial_margin).max(0.0) * self.account.multiplier;
         self.account.regt_buying_power = self.account.buying_power / 2.;
-        Ok(())
+        let fut = async move {
+            let prev_position = PositionManager::from_registry().send(GetPositionBySymbol{ symbol: tf.order.symbol.clone() }).await.ok().unwrap();
+            (tf, prev_position)
+        }
+        .into_actor(self)
+            .map(move |(tf, prev_position), act, _ctx| {
+                match prev_position {
+                     // The implementation here is incorrect, need to update based on market value, not cost
+                     // basis
+                     Some(pos) => {
+                         if let position::Side::Long = pos.side {
+                             act.account.long_market_value += cost_basis
+                         } else {
+                             act.account.short_market_value += cost_basis
+                         }
+                     }
+                     None => {
+                         if tf.qty > 0 {
+                             act.account.long_market_value += cost_basis
+                         } else {
+                             act.account.short_market_value += cost_basis
+                         }
+                     }
+                 };
+                Ok(())
+            });
+        Box::pin(fut)
     }
 }
 

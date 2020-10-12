@@ -27,10 +27,10 @@ struct NonTickerTrade {
 
 #[derive(Deserialize)]
 struct PolygonResponse {
-    _results_count: i32,
-    _db_latency: i32,
-    _success: bool,
-    _ticker: String,
+    results_count: i32,
+    db_latency: i32,
+    success: bool,
+    ticker: String,
     results: Vec<NonTickerTrade>,
 }
 

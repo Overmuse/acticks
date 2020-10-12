@@ -188,8 +188,9 @@ impl Default for Exchange {
 
 pub async fn update_from_fill(tf: &TradeFill) -> Result<()> {
     OrderManager::from_registry().send(tf.clone()).await??;
-    PositionManager::from_registry().send(tf.clone()).await??;
+    // Account needs to be update before position as it relies on the previous position
     AccountManager::from_registry().send(tf.clone()).await??;
+    PositionManager::from_registry().send(tf.clone()).await??;
     Ok(())
 }
 fn is_marketable(o: &Order, price: f64) -> bool {

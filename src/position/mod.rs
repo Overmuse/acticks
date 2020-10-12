@@ -3,7 +3,7 @@ use crate::order;
 use actix::SystemService;
 use actors::{GetPositionBySymbol, GetPositions, PositionManager};
 use std::collections::HashMap;
-use types::{Position, Side};
+pub use types::{Position, Side};
 
 pub mod actors;
 pub mod types;
