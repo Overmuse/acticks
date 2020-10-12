@@ -4,7 +4,7 @@ use crate::exchange::TradeFill;
 use crate::position::{self, actors::{PositionManager, GetPositionBySymbol}};
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
-use log::{debug, trace};
+use tracing::{debug, trace};
 
 pub struct AccountManager {
     pub account: Account,

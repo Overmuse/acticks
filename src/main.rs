@@ -10,6 +10,7 @@ use actix_web::{
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger;
+use tracing::Level;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -134,7 +135,10 @@ async fn initialize_actors(
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    //env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .try_init().unwrap();
     let cash: f64 = 1_000_000.0;
     let symbols = vec!["AAPL".into(), "TSLA".into()];
     let market_fut = initialize_actors(cash, symbols).await?;

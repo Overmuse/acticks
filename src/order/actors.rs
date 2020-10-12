@@ -2,7 +2,7 @@ use super::types::{Order, OrderStatus};
 use crate::errors::{Error, Result};
 use crate::exchange::TradeFill;
 use actix::prelude::*;
-use log::debug;
+use tracing::debug;
 use std::collections::HashMap;
 use uuid::Uuid;
 

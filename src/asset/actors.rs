@@ -1,6 +1,6 @@
 use crate::asset::types::Asset;
 use actix::prelude::*;
-use log::debug;
+use tracing::debug;
 use std::collections::HashMap;
 use uuid::Uuid;
 

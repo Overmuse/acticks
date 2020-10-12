@@ -1,4 +1,4 @@
-use log::warn;
+use tracing::warn;
 use serde::de::{self, Deserialize, Deserializer};
 use serde::ser::Serializer;
 use serde_json::Value;

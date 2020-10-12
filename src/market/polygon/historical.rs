@@ -1,6 +1,6 @@
 use super::*;
 use crate::errors::{Error, Result};
-use log::{debug, info, trace, warn};
+use tracing::{debug, info, trace, warn};
 use reqwest::Client;
 use serde::{Deserialize};
 use serde_json;
@@ -119,7 +119,7 @@ impl Handler<Start> for PolygonMarket {
         let fut = stream
             .map(|msg, act, _ctx| {
                 let trade = msg.expect("probably will never error").into_inner();
-                info!("{:?}", &trade);
+                //info!("{:?}", &trade);
                 for subscr in &act.subscribers {
                     let res = subscr.do_send(trade.clone());
                     if let Err(e) = res {

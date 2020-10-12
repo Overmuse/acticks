@@ -9,8 +9,7 @@ use crate::order::{
 use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
-use log::debug;
-use log::warn;
+use tracing::{debug, warn};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Message)]

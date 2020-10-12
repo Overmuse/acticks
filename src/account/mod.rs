@@ -4,13 +4,14 @@ use crate::account::{
 };
 use crate::errors::{Error, Result};
 use actix::registry::SystemService;
-use log::trace;
+use tracing::info;
 
 pub mod actors;
 pub mod types;
 
+#[tracing::instrument]
 pub async fn get_account() -> Result<Account> {
-    trace!("Sending GetAccount to AccountManager");
+    info!("Sending GetAccount to AccountManager");
     AccountManager::from_registry()
         .send(GetAccount {})
         .await

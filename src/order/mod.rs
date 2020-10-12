@@ -49,6 +49,7 @@ pub async fn cancel_order(id: Uuid) -> Result<()> {
     Ok(())
 }
 
+#[tracing::instrument]
 pub async fn post_order(o: OrderIntent) -> Result<Order> {
     let asset = asset::get_asset(&o.symbol).await?;
     let mut order: Order = Order::from_intent(&o, &asset);

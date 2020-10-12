@@ -7,7 +7,7 @@ use crate::errors::{Error, Result};
 use crate::exchange::TradeFill;
 use crate::market::Trade;
 use actix::prelude::*;
-use log::debug;
+use tracing::debug;
 use std::collections::HashMap;
 
 #[derive(Default)]
