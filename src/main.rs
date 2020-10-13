@@ -148,7 +148,7 @@ async fn main() -> Result<()> {
     set_global_default(subscriber).expect("Failed to set subscriber");
 
     let cash: f64 = 1_000_000.0;
-    let symbols = vec!["AAPL".into(), "TSLA".into()];
+    let symbols = vec!["AAPL".into()]; //, "TSLA".into()];
     let market_fut = initialize_actors(cash, symbols).await?;
     let server_fut = HttpServer::new(move || {
         App::new()

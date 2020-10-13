@@ -10,7 +10,7 @@ use crate::position::actors::PositionManager;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::debug;
 
 #[derive(Clone, Debug, Message)]
 #[rtype(result = "Result<()>")]
@@ -76,13 +76,16 @@ impl Handler<SetAssets> for Exchange {
 }
 
 impl Handler<Trade> for Exchange {
-    type Result = ();
+    type Result = ResponseFuture<()>;
 
-    fn handle(&mut self, msg: Trade, _ctx: &mut Context<Self>) {
-        self.prices
-            .entry(msg.symbol.clone())
-            .and_modify(|x| *x = msg.price)
-            .or_insert(msg.price);
+    fn handle(&mut self, msg: Trade, _ctx: &mut Context<Self>) -> Self::Result {
+        let trades = self.update_price(&msg.symbol, msg.price);
+        let fut = async {
+            for trade in trades {
+                update_from_fill(&trade).await.unwrap()
+            }
+        };
+        Box::pin(fut)
     }
 }
 
@@ -141,7 +144,6 @@ impl Exchange {
     }
 
     pub fn execute_or_store(&mut self, o: Order) -> Result<Option<TradeFill>> {
-        warn!("{:?}", self.get_price(&o.symbol));
         let price = *self.get_price(&o.symbol)?;
         if is_marketable(&o, price) {
             Ok(Some(self.execute(o, price)))
@@ -168,7 +170,7 @@ impl Exchange {
             .or_insert(price);
         let marketable_orders: Vec<Order> = self
             .stored_orders
-            .drain_filter(|o| o.symbol == symbol && is_marketable(o, price))
+            .drain_filter(|o| &o.symbol == symbol && is_marketable(o, price))
             .collect();
 
         marketable_orders
