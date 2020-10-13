@@ -1,7 +1,7 @@
 use crate::asset::types::Asset;
 use actix::prelude::*;
-use tracing::debug;
 use std::collections::HashMap;
+use tracing::debug;
 use uuid::Uuid;
 
 #[derive(Default)]

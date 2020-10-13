@@ -1,11 +1,11 @@
 use super::*;
 use crate::errors::{Error, Result};
-use tracing::{debug, info, trace, warn};
 use reqwest::Client;
-use serde::{Deserialize};
+use serde::Deserialize;
 use serde_json;
 use std::cmp::Reverse;
 use tokio::time::{DelayQueue, Duration, Instant};
+use tracing::{debug, info, trace, warn};
 
 #[derive(Deserialize, Clone)]
 struct NonTickerTrade {
@@ -67,16 +67,16 @@ impl PolygonMarket {
             .results
             .iter()
             .cloned()
-            .map(|t| Trade { 
-                symbol: symbol.to_string(), 
+            .map(|t| Trade {
+                symbol: symbol.to_string(),
                 trade_id: t.trade_id,
                 exchange_id: t.exchange_id,
                 price: t.price,
                 size: t.size,
                 conditions: t.conditions,
                 timestamp: t.timestamp,
-                tape: t.tape,     
-            } )
+                tape: t.tape,
+            })
             .collect())
     }
 }

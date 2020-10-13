@@ -26,6 +26,8 @@ websocket = { version = "0.26.2", optional = true }
 tracing = "0.1.21"
 tracing-subscriber = "0.2.13"
 tracing-futures = "0.2.4"
+tracing-log = "0.1.1"
+tracing-bunyan-formatter = "0.1.6"
 
 [dev-dependencies]
 actix-rt = "1"

@@ -10,8 +10,11 @@ use actix_web::{
     App, HttpResponse, HttpServer, Result,
 };
 use env_logger;
-use tracing::Level;
 use serde::Deserialize;
+use tracing::subscriber::set_global_default;
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_log::LogTracer;
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 use uuid::Uuid;
 
 async fn get_clock() -> Result<HttpResponse> {
@@ -135,10 +138,16 @@ async fn initialize_actors(
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    //env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .try_init().unwrap();
+    LogTracer::init().expect("Failed to set logger");
+
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    let formatting_layer = BunyanFormattingLayer::new("acticks".into(), std::io::stdout);
+    let subscriber = Registry::default()
+        .with(env_filter)
+        .with(JsonStorageLayer)
+        .with(formatting_layer);
+    set_global_default(subscriber).expect("Failed to set subscriber");
+
     let cash: f64 = 1_000_000.0;
     let symbols = vec!["AAPL".into(), "TSLA".into()];
     let market_fut = initialize_actors(cash, symbols).await?;

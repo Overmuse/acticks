@@ -52,4 +52,3 @@ pub struct Initialize(pub Vec<String>);
 pub struct Start(pub u64);
 
 pub trait Market: Actor + Handler<Subscribe> + Handler<Initialize> + Handler<Start> {}
-

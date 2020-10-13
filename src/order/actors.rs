@@ -2,8 +2,8 @@ use super::types::{Order, OrderStatus};
 use crate::errors::{Error, Result};
 use crate::exchange::TradeFill;
 use actix::prelude::*;
-use tracing::debug;
 use std::collections::HashMap;
+use tracing::debug;
 use uuid::Uuid;
 
 #[derive(Message)]

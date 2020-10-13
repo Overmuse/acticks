@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cmp::Reverse;
 use tokio::time::{DelayQueue, Duration, Instant};
-use websocket::{ClientBuilder, r#async::client::Client};
+use websocket::{r#async::client::Client, ClientBuilder};
 
 #[derive(Default)]
 pub struct PolygonMarket {
