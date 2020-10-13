@@ -11,7 +11,6 @@ pub mod types;
 
 #[tracing::instrument]
 pub async fn get_account() -> Result<Account> {
-    info!("Sending GetAccount to AccountManager");
     AccountManager::from_registry()
         .send(GetAccount {})
         .await

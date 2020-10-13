@@ -8,6 +8,7 @@ use crate::position::{
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
 use tracing::{debug, trace};
+use tracing_futures::Instrument;
 
 #[derive(Debug)]
 pub struct AccountManager {
@@ -41,7 +42,7 @@ pub struct GetAccount;
 impl Handler<GetAccount> for AccountManager {
     type Result = Account;
 
-    #[tracing::instrument(skip(_ctx))]
+    #[tracing::instrument(name = "AccountManager: Handle<GetAccount>", skip(self, _msg, _ctx))]
     fn handle(&mut self, _msg: GetAccount, _ctx: &mut Context<Self>) -> Self::Result {
         trace!("Received GetAccount");
         self.account.clone()
@@ -63,7 +64,7 @@ where
 impl Handler<TradeFill> for AccountManager {
     type Result = ResponseActFuture<Self, Result<()>>;
 
-    #[tracing::instrument(skip(_ctx))]
+    #[tracing::instrument(name = "AccountManager: Handle<TradeFill>", skip(self, _ctx))]
     fn handle(&mut self, tf: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         trace!("Received TradeFill");
         let cost_basis = tf.price * tf.qty as f64;
@@ -74,6 +75,7 @@ impl Handler<TradeFill> for AccountManager {
             (self.account.equity - self.account.initial_margin).max(0.0) * self.account.multiplier;
         self.account.regt_buying_power = self.account.buying_power / 2.;
         let fut = async move {
+            debug!("Requesting current positions");
             let prev_position = PositionManager::from_registry()
                 .send(GetPositionBySymbol {
                     symbol: tf.order.symbol.clone(),
@@ -83,12 +85,14 @@ impl Handler<TradeFill> for AccountManager {
                 .unwrap();
             (tf, prev_position)
         }
+        .instrument(tracing::debug_span!("Requesting position"))
         .into_actor(self)
         .map(move |(tf, prev_position), act, _ctx| {
             match prev_position {
                 // The implementation here is incorrect, need to update based on market value, not cost
                 // basis
                 Some(pos) => {
+                    trace!("Existing position: {:?}", &pos);
                     if let position::Side::Long = pos.side {
                         act.account.long_market_value += cost_basis
                     } else {
@@ -96,6 +100,7 @@ impl Handler<TradeFill> for AccountManager {
                     }
                 }
                 None => {
+                    trace!("No existing position");
                     if tf.qty > 0 {
                         act.account.long_market_value += cost_basis
                     } else {
@@ -116,7 +121,7 @@ pub struct SetCash(pub f64);
 impl Handler<SetCash> for AccountManager {
     type Result = ();
 
-    #[tracing::instrument(skip(_ctx))]
+    #[tracing::instrument(name = "AccountManager: Handle<SetCash>", skip(self, _ctx))]
     fn handle(&mut self, cash: SetCash, _ctx: &mut Context<Self>) -> Self::Result {
         trace!("Received SetCash");
         debug!("Updating cash: {}", &cash.0);

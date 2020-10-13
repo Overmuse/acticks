@@ -9,7 +9,6 @@ use actix_web::{
     web::{self, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };
-use env_logger;
 use serde::Deserialize;
 use tracing::subscriber::set_global_default;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};

@@ -8,7 +8,8 @@ use crate::exchange::TradeFill;
 use crate::market::Trade;
 use actix::prelude::*;
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, instrument};
+use tracing_futures::Instrument;
 
 #[derive(Default)]
 pub struct PositionManager {
@@ -30,6 +31,7 @@ impl SystemService for PositionManager {
 impl Handler<Trade> for PositionManager {
     type Result = ();
 
+    //#[instrument(name = "PositionManager: Handle<Trade>", skip(self, _ctx))]
     fn handle(&mut self, msg: Trade, _ctx: &mut Context<Self>) {
         match self.positions.get_mut(&msg.symbol) {
             Some(pos) => {
@@ -47,12 +49,13 @@ pub struct GetPositions;
 impl Handler<GetPositions> for PositionManager {
     type Result = MessageResult<GetPositions>;
 
+    #[instrument(name = "PositionManager: Handle<GetPositions>", skip(self, _msg, _ctx))]
     fn handle(&mut self, _msg: GetPositions, _ctx: &mut Context<Self>) -> Self::Result {
         MessageResult(self.positions.clone())
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Option<Position>")]
 pub struct GetPositionBySymbol {
     pub symbol: String,
@@ -61,6 +64,10 @@ pub struct GetPositionBySymbol {
 impl Handler<GetPositionBySymbol> for PositionManager {
     type Result = Option<Position>;
 
+    #[instrument(
+        name = "PositionManager: Handle<GetPositionBySymbol>",
+        skip(self, _ctx)
+    )]
     fn handle(&mut self, msg: GetPositionBySymbol, _ctx: &mut Context<Self>) -> Self::Result {
         self.positions.get(&msg.symbol).cloned()
     }
@@ -69,6 +76,7 @@ impl Handler<GetPositionBySymbol> for PositionManager {
 impl Handler<TradeFill> for PositionManager {
     type Result = ResponseActFuture<Self, Result<()>>;
 
+    #[instrument(name = "PositionManager: Handle<TradeFill>", skip(self, _ctx))]
     fn handle(&mut self, msg: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         Box::pin(
             async move {
@@ -81,6 +89,7 @@ impl Handler<TradeFill> for PositionManager {
                     .ok_or_else(|| Error::NotFound)?;
                 Ok::<(TradeFill, Asset), Error>((msg, asset))
             }
+            .instrument(tracing::debug_span!("Requesting asset"))
             .into_actor(self)
             .map(|res, act, _ctx| {
                 let (msg, asset) = res?;
