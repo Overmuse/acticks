@@ -1,11 +1,7 @@
-use acticks::{
-    account, asset, clock, exchange,
-    market::{self},
-    order, position,
-};
+use acticks::{account, asset, clock, exchange, market, order, position};
 use actix::registry::SystemService;
-use actix_web::middleware::Logger;
 use actix_web::{
+    middleware::Logger,
     web::{self, Json, Path, Query},
     App, HttpResponse, HttpServer, Result,
 };

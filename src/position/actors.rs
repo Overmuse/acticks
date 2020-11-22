@@ -31,7 +31,7 @@ impl SystemService for PositionManager {
 impl Handler<Trade> for PositionManager {
     type Result = ();
 
-    //#[instrument(name = "PositionManager: Handle<Trade>", skip(self, _ctx))]
+    #[instrument(name = "PositionManager: Handle<Trade>", skip(self, _ctx))]
     fn handle(&mut self, msg: Trade, _ctx: &mut Context<Self>) {
         match self.positions.get_mut(&msg.symbol) {
             Some(pos) => {

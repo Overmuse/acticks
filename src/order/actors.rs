@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use tracing::debug;
 use uuid::Uuid;
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "HashMap<Uuid, Order>")]
 pub struct GetOrders;
 
@@ -30,12 +30,13 @@ impl SystemService for OrderManager {
 impl Handler<GetOrders> for OrderManager {
     type Result = MessageResult<GetOrders>;
 
+    #[tracing::instrument(name = "OrderManager: Handle<GetOrders>", skip(self, _msg, _ctx))]
     fn handle(&mut self, _msg: GetOrders, _ctx: &mut Context<Self>) -> Self::Result {
         MessageResult(self.orders.clone())
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Option<Order>")]
 pub struct GetOrderByClientOrderId {
     pub client_order_id: String,
@@ -44,6 +45,10 @@ pub struct GetOrderByClientOrderId {
 impl Handler<GetOrderByClientOrderId> for OrderManager {
     type Result = Option<Order>;
 
+    #[tracing::instrument(
+        name = "OrderManager: Handle<GetOrderByClientOrderId>",
+        skip(self, _ctx)
+    )]
     fn handle(&mut self, msg: GetOrderByClientOrderId, _ctx: &mut Context<Self>) -> Self::Result {
         self.orders
             .values()
@@ -52,7 +57,7 @@ impl Handler<GetOrderByClientOrderId> for OrderManager {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Option<Order>")]
 pub struct GetOrderById {
     pub id: Uuid,
@@ -61,12 +66,13 @@ pub struct GetOrderById {
 impl Handler<GetOrderById> for OrderManager {
     type Result = Option<Order>;
 
+    #[tracing::instrument(name = "OrderManager: Handle<GetOrderById>", skip(self, _ctx))]
     fn handle(&mut self, msg: GetOrderById, _ctx: &mut Context<Self>) -> Self::Result {
         self.orders.get(&msg.id).cloned()
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct PostOrder {
     pub order: Order,
@@ -75,6 +81,7 @@ pub struct PostOrder {
 impl Handler<PostOrder> for OrderManager {
     type Result = ();
 
+    #[tracing::instrument(name = "OrderManager: Handle<PostOrder>", skip(self, _ctx))]
     fn handle(&mut self, msg: PostOrder, _ctx: &mut Context<Self>) -> Self::Result {
         self.orders.insert(msg.order.id, msg.order);
     }
@@ -83,6 +90,7 @@ impl Handler<PostOrder> for OrderManager {
 impl Handler<TradeFill> for OrderManager {
     type Result = Result<()>;
 
+    #[tracing::instrument(name = "OrderManager: Handle<TradeFill>", skip(self, _ctx))]
     fn handle(&mut self, msg: TradeFill, _ctx: &mut Context<Self>) -> Self::Result {
         self.orders.entry(msg.order.id).and_modify(|order| {
             let time = Some(msg.time);
@@ -96,13 +104,14 @@ impl Handler<TradeFill> for OrderManager {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct CancelOrders;
 
 impl Handler<CancelOrders> for OrderManager {
     type Result = ();
 
+    #[tracing::instrument(name = "OrderManager: Handle<CancelOrders>", skip(self, _msg, _ctx))]
     fn handle(&mut self, _msg: CancelOrders, _ctx: &mut Context<Self>) -> Self::Result {
         for order in self.orders.values_mut() {
             match order.status {
@@ -115,13 +124,14 @@ impl Handler<CancelOrders> for OrderManager {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Result<()>")]
 pub struct CancelOrder(pub Uuid);
 
 impl Handler<CancelOrder> for OrderManager {
     type Result = Result<()>;
 
+    #[tracing::instrument(name = "OrderManager: Handle<CancelOrder>", skip(self, _ctx))]
     fn handle(&mut self, msg: CancelOrder, _ctx: &mut Context<Self>) -> Self::Result {
         self.orders
             .get_mut(&msg.0)

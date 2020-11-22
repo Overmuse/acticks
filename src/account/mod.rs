@@ -4,7 +4,6 @@ use crate::account::{
 };
 use crate::errors::{Error, Result};
 use actix::registry::SystemService;
-use tracing::info;
 
 pub mod actors;
 pub mod types;

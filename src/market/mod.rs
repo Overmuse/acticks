@@ -3,7 +3,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
-#[cfg(feature = "polygon")]
+//#[cfg(feature = "polygon")]
 pub mod polygon;
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]

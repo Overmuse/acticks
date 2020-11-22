@@ -21,19 +21,20 @@ impl SystemService for AssetManager {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "HashMap<String, Asset>")]
 pub struct GetAssets;
 
 impl Handler<GetAssets> for AssetManager {
     type Result = MessageResult<GetAssets>;
 
+    #[tracing::instrument(name = "AssetManager: Handle<GetAssets>", skip(self, _msg, _ctx))]
     fn handle(&mut self, _msg: GetAssets, _ctx: &mut Context<Self>) -> Self::Result {
         MessageResult(self.assets.clone())
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Option<Asset>")]
 pub struct GetAssetBySymbol {
     pub symbol: String,
@@ -42,12 +43,13 @@ pub struct GetAssetBySymbol {
 impl Handler<GetAssetBySymbol> for AssetManager {
     type Result = Option<Asset>;
 
+    #[tracing::instrument(name = "AssetManager: Handle<GetAssetBySymbol>", skip(self, _ctx))]
     fn handle(&mut self, msg: GetAssetBySymbol, _ctx: &mut Context<Self>) -> Self::Result {
         self.assets.get(&msg.symbol).cloned()
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Option<Asset>")]
 pub struct GetAssetById {
     pub id: Uuid,
@@ -56,6 +58,7 @@ pub struct GetAssetById {
 impl Handler<GetAssetById> for AssetManager {
     type Result = Option<Asset>;
 
+    #[tracing::instrument(name = "AssetManager: Handle<GetAssetById>", skip(self, _ctx))]
     fn handle(&mut self, msg: GetAssetById, _ctx: &mut Context<Self>) -> Self::Result {
         self.assets
             .values()
@@ -64,7 +67,7 @@ impl Handler<GetAssetById> for AssetManager {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct SetAssets {
     pub symbols: Vec<String>,
@@ -73,6 +76,7 @@ pub struct SetAssets {
 impl Handler<SetAssets> for AssetManager {
     type Result = ();
 
+    #[tracing::instrument(name = "AssetManager: Handle<SetAssets>", skip(self, _ctx))]
     fn handle(&mut self, msg: SetAssets, _ctx: &mut Context<Self>) -> Self::Result {
         let symbols = msg.symbols;
         let assets: Vec<Asset> = symbols.iter().map(|x| Asset::from_symbol(x)).collect();
