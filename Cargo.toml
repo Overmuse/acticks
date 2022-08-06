@@ -26,7 +26,7 @@ tracing-bunyan-formatter = "0.1.6"
 tracing-futures = "0.2.4"
 tracing-log = "0.1.1"
 tracing-subscriber = "0.2.13"
-websocket = { version = "0.26.2", optional = true }
+websocket = { version = "0.26.5", optional = true }
 
 [dev-dependencies]
 actix-rt = "1"
